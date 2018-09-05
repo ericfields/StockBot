@@ -1,0 +1,4 @@
+django
+alpha_vantage
+matplotlib
+pandas
