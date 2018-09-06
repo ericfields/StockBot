@@ -95,7 +95,7 @@ def generate_chart(symbol, company_name = None):
     # Fix graph y-axis to max/min prices available
     min_price = min(min(series), last_closing_price)
     max_price = max(max(series), last_closing_price)
-    axis.set_ylim(min_price, max_price)
+    axis.set_ylim(min_price - min_price * .01, max_price + max_price * .01)
 
     axis.grid(True, linewidth=0.2)
 

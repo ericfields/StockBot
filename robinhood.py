@@ -5,7 +5,8 @@ ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 ENDPOINTS = {
     'quote': '/quotes',
     'historicals': '/quotes/historicals',
-    'instrument': '/instruments'
+    'instrument': '/instruments',
+    'fundamentals': '/fundamentals'
 }
 
 def endpoint(name):
@@ -20,6 +21,9 @@ def retrieve(endpoint_name, resource = None, **params):
         request_url += '?' + param_str
 
     response = requests.get(request_url)
+    if response.status_code != 200:
+        return {}
+        
     return response.json()
 
 def historicals(symbol, span='day', interval='5minute'):
@@ -30,3 +34,6 @@ def quote(symbol):
 
 def instrument(symbol):
     return retrieve('instrument', symbol=symbol)
+
+def fundamentals(symbol):
+    return retrieve('fundamentals', symbol)
