@@ -1,8 +1,7 @@
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
-from openfigi import get_stock_company
+from robinhood import instrument
 from chart import generate_chart
-from io import BytesIO
 from .models import Stock
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
@@ -66,12 +65,9 @@ def graph_img(request, img_name):
     return chart_img(stock)
 
 def chart_img(stock):
-    chart = get_chart(stock)
+    chart_img_data = get_chart_img_data(stock)
 
-    img_data = BytesIO()
-    chart.savefig(img_data, format='png', dpi=(100))
-
-    return HttpResponse(img_data.getvalue(), content_type="image/png")
+    return HttpResponse(chart_img_data, content_type="image/png")
 
 def get_stock(symbol):
     symbol = symbol.upper()
@@ -80,12 +76,15 @@ def get_stock(symbol):
     try:
         stock = Stock.objects.get(symbol=symbol)
     except ObjectDoesNotExist:
-        company_name = get_stock_company(symbol)
-        if company_name:
+        instruments = instrument(symbol)
+        if instruments['results']:
+            company_info = instruments['results'][0]
+            print(company_info)
+            company_name = company_info['simple_name'] or company_info['name']
             stock = Stock(symbol=symbol, company_name=company_name)
             stock.save()
 
     return stock
 
-def get_chart(stock):
+def get_chart_img_data(stock):
     return generate_chart(stock.symbol, stock.company_name)
