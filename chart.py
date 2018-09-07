@@ -11,37 +11,26 @@ import robinhood
 from multiprocessing.pool import ThreadPool
 from io import BytesIO
 
-# Define time range to show on chart
-MARKET_OPEN = '9:30AM'
-MARKET_CLOSE = '4:00PM'
+# Define latest time to show on chart
+MARKET_OPEN = '9:00AM'
+AFTER_HOURS = '6:00PM'
 
 MARKET_TIMEZONE = timezone('US/Eastern')
 
 # Set default timezone for plotting all graphs
 matplotlib.rcParams['timezone'] = MARKET_TIMEZONE
 
+AFTER_HOURS_TIME = dateparser.parse(AFTER_HOURS).time()
 MARKET_OPEN_TIME = dateparser.parse(MARKET_OPEN).time()
-MARKET_CLOSE_TIME = dateparser.parse(MARKET_CLOSE).time()
 
-def get_market_times():
+def time_for_today(selected_time):
     now = datetime.now(MARKET_TIMEZONE)
-    market_open = now.replace(
-        hour=MARKET_OPEN_TIME.hour,
-        minute=MARKET_OPEN_TIME.minute,
-        second=MARKET_OPEN_TIME.second,
+    return now.replace(
+        hour=selected_time.hour,
+        minute=selected_time.minute,
+        second=selected_time.second,
         microsecond=0
     )
-    if market_open > now:
-        # It's after midnight, use the previous day's results instead
-        market_open = market_open - timedelta(days=1)
-
-    market_close = market_open.replace(
-        hour=MARKET_CLOSE_TIME.hour,
-        minute=MARKET_CLOSE_TIME.minute,
-        second=MARKET_CLOSE_TIME.second,
-        microsecond=0
-    )
-    return market_open, market_close
 
 def get_robinhood_chart_data(symbol):
     pool = ThreadPool(processes=1)
@@ -62,6 +51,13 @@ def get_robinhood_chart_data(symbol):
 
     return pd.Series(price_values, index=time_values), last_closing_price, current_price
 
+# Return market color as RGBA value
+def get_market_color(is_positive):
+    if is_positive:
+        return [0, 0.5, 0, 1] # green
+    else:
+        return [1, 0, 0, 1] # red
+
 def generate_chart(symbol, company_name = None):
     series, last_closing_price, current_price = get_robinhood_chart_data(symbol)
 
@@ -71,17 +67,15 @@ def generate_chart(symbol, company_name = None):
     axis.xaxis.set_major_formatter(time_format)
 
     # Show the graph as green if the stock's up, or red if it's down
-    options = {}
-    if current_price >= last_closing_price:
-        options['color'] = 'green'
-    else:
-        options['color'] = 'red'
+    market_color = get_market_color(current_price >= last_closing_price)
 
     axis.text(0.6, 0.9, round(current_price, 2),
         transform=plt.gcf().transFigure,
         fontsize=14)
 
     if company_name:
+        if len(company_name) > 32:
+            company_name = company_name[0:32] + '...'
         title = ("{} ({})".format(company_name, symbol))
     else:
         title = symbol
@@ -89,17 +83,17 @@ def generate_chart(symbol, company_name = None):
     axis.set_title(title, x=0.2)
 
     # Fix graph x-axis to market hours
-    market_open, market_close = get_market_times()
-    axis.set_xlim(market_open, market_close)
+    now = datetime.now(MARKET_TIMEZONE)
+    last_time_to_display = time_for_today(AFTER_HOURS_TIME)
+    if now < time_for_today(MARKET_OPEN_TIME):
+        last_time_to_display -= timedelta(days=1)
 
-    # Fix graph y-axis to max/min prices available
-    min_price = min(min(series), last_closing_price)
-    max_price = max(max(series), last_closing_price)
-    axis.set_ylim(min_price - min_price * .01, max_price + max_price * .01)
+    axis.set_xlim(series.index[0], last_time_to_display)
 
+    axis.margins(0.1)
     axis.grid(True, linewidth=0.2)
 
-    axis.plot(series, **options)
+    axis.plot(series, color=market_color)
 
     # Show the latest price/change on the graph
     price_change = round(current_price - last_closing_price, 2)
@@ -112,8 +106,8 @@ def generate_chart(symbol, company_name = None):
     price_change_str = "{}{} ({}%)".format(change_sign, abs(price_change), percentage_change)
     axis.text(0.8, 0.9, price_change_str,
         transform=plt.gcf().transFigure,
-        color = options['color'],
-        fontsize=10)
+        color = market_color,
+        fontsize=12)
 
     # Show the date/time info
     date_str = datetime.now(MARKET_TIMEZONE).strftime(
