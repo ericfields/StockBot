@@ -7,7 +7,7 @@ from dateutil import parser as dateparser
 from pytz import timezone
 import pandas as pd
 from time import sleep
-import robinhood
+from robinhood import Quote, Historicals
 from multiprocessing.pool import ThreadPool
 from io import BytesIO
 
@@ -32,22 +32,32 @@ def time_for_today(selected_time):
         microsecond=0
     )
 
-def get_robinhood_chart_data(symbol):
+def get_robinhood_chart_data(symbol, span="day"):
     pool = ThreadPool(processes=1)
-    quote_thread_result = pool.apply_async(robinhood.quote, (symbol,))
+    quote_thread_result = pool.apply_async(Quote.get, (symbol,))
 
-    historical_data = robinhood.historicals(symbol)
+    span_intervals = {
+        'day': '5minute',
+        'week': '1hour',
+        'year': 'day',
+        '5year': 'week',
+        'all': 'week'
+    }
+
+    interval = span_intervals[span]
+
+    historicals = Historicals.list(symbol, span=span, interval=interval, bounds='trading')
 
     time_values = []
     price_values = []
-    for historical in historical_data['historicals']:
-        time_values.append(dateparser.parse(historical['begins_at']))
-        price_values.append(float(historical['close_price']))
+    for historical in historicals:
+        time_values.append(dateparser.parse(historical.begins_at))
+        price_values.append(float(historical.close_price))
 
-    last_closing_price = float(historical_data['previous_close_price'])
+    last_closing_price = float(historicals.previous_close_price)
 
-    quote_data = quote_thread_result.get()
-    current_price = float(quote_data['last_trade_price'])
+    quote = quote_thread_result.get()
+    current_price = float(quote.last_trade_price)
 
     return pd.Series(price_values, index=time_values), last_closing_price, current_price
 
