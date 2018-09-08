@@ -9,7 +9,9 @@ from pytz import timezone
 from io import BytesIO
 
 # Define latest time to show on chart
-MARKET_OPEN = '9:00AM'
+BEFORE_HOURS = '9:00AM'
+MARKET_OPEN = '9:30AM'
+MARKET_CLOSE = '4:00PM'
 AFTER_HOURS = '6:00PM'
 
 MARKET_TIMEZONE = timezone('US/Eastern')
@@ -17,11 +19,15 @@ MARKET_TIMEZONE = timezone('US/Eastern')
 # Set default timezone for plotting all graphs
 matplotlib.rcParams['timezone'] = MARKET_TIMEZONE
 
-AFTER_HOURS_TIME = dateparser.parse(AFTER_HOURS).time()
+BEFORE_HOURS_TIME = dateparser.parse(BEFORE_HOURS).time()
 MARKET_OPEN_TIME = dateparser.parse(MARKET_OPEN).time()
+AFTER_HOURS_TIME = dateparser.parse(AFTER_HOURS).time()
+MARKET_CLOSE_TIME = dateparser.parse(MARKET_CLOSE).time()
 
 def time_for_today(selected_time):
     now = datetime.now(MARKET_TIMEZONE)
+    if now.time() < BEFORE_HOURS_TIME:
+        now = now - timedelta(days=1)
     return now.replace(
         hour=selected_time.hour,
         minute=selected_time.minute,
@@ -71,9 +77,15 @@ def generate_chart(chart_data):
     if span == 'day':
         now = datetime.now(MARKET_TIMEZONE)
         last_time_to_display = time_for_today(AFTER_HOURS_TIME)
-        if now < time_for_today(MARKET_OPEN_TIME):
-            last_time_to_display -= timedelta(days=1)
 
+        # Indicate times outside trading hours
+        market_open_time = time_for_today(MARKET_OPEN_TIME)
+        axis.axvspan(series.index[0], market_open_time,
+            facecolor='grey', alpha=0.1)
+
+        market_close_time = time_for_today(MARKET_CLOSE_TIME)
+        axis.axvspan(market_close_time, last_time_to_display,
+            facecolor='grey', alpha=0.1)
         time_format = mdates.DateFormatter("%-I %p")
     else:
         time_diff = series.index[-1] - series.index[0]
@@ -94,21 +106,28 @@ def generate_chart(chart_data):
 
     axis.plot(series, color=market_color)
 
-    current_price_str = '${:,.2f}'.format(current_price)
+    if current_price < 0.1:
+        current_price_str = '${:,.4f}'.format(current_price)
+    else:
+        current_price_str = '${:,.2f}'.format(current_price)
     axis.text(0.2, 0.82, current_price_str,
         transform=plt.gcf().transFigure,
         fontsize=15)
 
     # Show the latest price/change on the graph
-    price_change = round(current_price - last_closing_price, 2)
-    if price_change > 0:
+    price_change = current_price - last_closing_price
+    if price_change >= 0:
         change_sign = '+'
     else:
         change_sign = '-'
     percentage_change = round(price_change / last_closing_price * 100, 2)
 
-    price_change_str = "{}{} ({}%)".format(change_sign, abs(price_change), percentage_change)
-    axis.text(0.6, 0.82, price_change_str,
+    if current_price < 0.1:
+        point_change = round(abs(price_change), 4)
+    else:
+        point_change = round(abs(price_change), 2)
+    price_change_str = "{}{} ({}%)".format(change_sign, point_change, percentage_change)
+    axis.text(0.4, 0.82, price_change_str,
         transform=plt.gcf().transFigure,
         color = market_color,
         fontsize=12)
@@ -116,7 +135,7 @@ def generate_chart(chart_data):
     # Show the date/time info
     date_str = datetime.now(MARKET_TIMEZONE).strftime(
         "%-m/%-d/%y %-I:%M %p")
-    axis.text(0.2, 0.7, date_str,
+    axis.text(0.73, 0.82, date_str,
         transform=plt.gcf().transFigure,
         color = 'grey',
         fontsize=10)
