@@ -59,13 +59,13 @@ def generate_chart(chart_data):
         series = pd.Series(series.values, index=new_index)
 
     if company_name:
-        if len(company_name) > 32:
+        if len(company_name) > 64:
             company_name = company_name[0:32] + '...'
         title = ("{} ({})".format(company_name, symbol))
     else:
         title = symbol
 
-    axis.set_title(title, x=0.2)
+    axis.set_title(title, horizontalalignment='left', x=0.0, y=1.15)
 
     # Format day chart for hourly display and show after-market time
     if span == 'day':
@@ -94,9 +94,10 @@ def generate_chart(chart_data):
 
     axis.plot(series, color=market_color)
 
-    axis.text(0.55, 0.9, "${}".format(round(current_price, 2)),
+    current_price_str = '${:,.2f}'.format(current_price)
+    axis.text(0.2, 0.82, current_price_str,
         transform=plt.gcf().transFigure,
-        fontsize=14)
+        fontsize=15)
 
     # Show the latest price/change on the graph
     price_change = round(current_price - last_closing_price, 2)
@@ -107,7 +108,7 @@ def generate_chart(chart_data):
     percentage_change = round(price_change / last_closing_price * 100, 2)
 
     price_change_str = "{}{} ({}%)".format(change_sign, abs(price_change), percentage_change)
-    axis.text(0.73, 0.9, price_change_str,
+    axis.text(0.6, 0.82, price_change_str,
         transform=plt.gcf().transFigure,
         color = market_color,
         fontsize=12)
@@ -115,10 +116,12 @@ def generate_chart(chart_data):
     # Show the date/time info
     date_str = datetime.now(MARKET_TIMEZONE).strftime(
         "%-m/%-d/%y %-I:%M %p")
-    axis.text(0.7, 0.8, date_str,
+    axis.text(0.2, 0.7, date_str,
         transform=plt.gcf().transFigure,
         color = 'grey',
         fontsize=10)
+
+    figure.subplots_adjust(top=0.8)
 
     figure_img_data = BytesIO()
     figure.savefig(figure_img_data, format='png', dpi=(100))
