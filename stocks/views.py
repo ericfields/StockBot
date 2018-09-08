@@ -1,7 +1,7 @@
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
-from robinhood import Instrument, Fundamentals, chart_data
-from chart import generate_chart
+from robinhood import Instrument, Fundamentals
+from chart import Chart
 from chart_data import ChartData
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
@@ -105,7 +105,8 @@ def graph_img(request, img_name):
 
 def chart_img(instrument, span='day'):
     chart_data = ChartData(instrument, span)
-    chart_img_data = generate_chart(chart_data)
+    chart = Chart(chart_data)
+    chart_img_data = chart.get_img_data()
 
     return HttpResponse(chart_img_data, content_type="image/png")
 

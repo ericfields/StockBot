@@ -1,23 +1,43 @@
 import requests
-import pandas as pd
-from multiprocessing.pool import ThreadPool
+from datetime import datetime
 from dateutil import parser as dateparser
+import re
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
 class ApiModel():
-    attrs = []
+    attributes = {}
 
     def __init__(self, **data):
-        self._assign_attrs(data)
+        self._assign_attributes(data)
 
-    def _assign_attrs(self, data):
-        for attr in self.attrs:
+    def _assign_attributes(self, data):
+        for attr in self.attributes:
             if attr in data:
-                setattr(self, attr, data[attr])
+                val = self._typed_attribute(attr, data[attr])
+                setattr(self, attr, val)
             elif attr not in locals():
                 # Initialize all missing attributes as None
                 setattr(self, attr, None)
+
+    def _typed_attribute(self, attr, val):
+        if val == None:
+            return val
+        type = self.attributes[attr]
+        if type == None:
+            return val
+        elif type == str:
+            return str(val)
+        elif type == float:
+            return float(val)
+        elif type == val:
+            return int()
+        elif type == datetime:
+            return dateparser.parse(val)
+        elif type == bool:
+            return val in [True, 'true', 'True', 't', 1]
+        else:
+            return type(val)
 
 class ApiCallException(Exception):
     pass
@@ -31,7 +51,7 @@ class ApiResource(ApiModel):
 
     @classmethod
     def get(cls, resource_id):
-        data = cls._request(resource_id)
+        data = ApiResource.request(cls.resource_url(resource_id))
         if data:
             return cls(**data)
         else:
@@ -39,7 +59,7 @@ class ApiResource(ApiModel):
 
     @classmethod
     def search(cls, **params):
-        data = cls._request(None, **params)
+        data = ApiResource.request(cls.resource_url(), **params)
         if data and 'results' in data:
             return [cls(**result) for result in data['results']]
 
@@ -50,7 +70,7 @@ class ApiResource(ApiModel):
         except NameError:
             raise Exception("Class is not listable: No Item subclass is defined within this class")
 
-        data = cls._request(resource_id, **params)
+        data = ApiResource.request(cls.resource_url(resource_id), **params)
 
         if data:
             obj = cls(**data)
@@ -61,12 +81,9 @@ class ApiResource(ApiModel):
         else:
             return None
 
-    # Retrieve a single instance corresponding to a single resource
-    @classmethod
-    def _request(cls, resource_id, **params):
-        request_url = ROBINHOOD_ENDPOINT + cls.endpoint_path + '/'
-        if resource_id:
-            request_url += "{}/".format(resource_id)
+    # Makes a request to Robinhood to retrieve data
+    @staticmethod
+    def request(resource_url, **params):
         if params:
             param_strs = []
             for key in params:
@@ -76,9 +93,8 @@ class ApiResource(ApiModel):
                     val = ','.join(val)
                 param_strs.append("{}={}".format(key, val))
 
-            request_url += '?' + '&'.join(param_strs)
-
-        response = requests.get(request_url)
+            resource_url += '?' + '&'.join(param_strs)
+        response = requests.get(resource_url)
         if response.status_code == 200:
             return response.json()
         elif response.status_code == 400:
@@ -88,6 +104,13 @@ class ApiResource(ApiModel):
         else:
             raise ApiCallException(response.text)
 
+
+    @classmethod
+    def resource_url(cls, resource_id = None):
+        resource_url = ROBINHOOD_ENDPOINT + cls.endpoint_path + "/"
+        if resource_id:
+            resource_url += "{}/".format(resource_id)
+        return resource_url
 
     # Enable iteration through the individual items if present
     def __iter__(self):
@@ -103,60 +126,66 @@ class ApiResource(ApiModel):
 
 class Quote(ApiResource):
     endpoint_path = "/quotes"
-    attrs = ['symbol', 'last_trade_price']
+    attributes = {
+        'symbol': str,
+        'last_trade_price': float
+    }
 
 class Instrument(ApiResource):
     endpoint_path = "/instruments"
-    attrs = ['symbol', 'simple_name', 'name']
+    attributes = {
+        'symbol': str,
+        'simple_name': str,
+        'name': str
+    }
 
 class Fundamentals(ApiResource):
     endpoint_path = "/fundamentals"
-    attrs = ['description']
+    attributes = {
+        'description': str
+    }
 
 class Historicals(ApiResource):
     endpoint_path = "/quotes/historicals"
-    attrs = ['previous_close_price']
+    attributes = {
+        'previous_close_price': float
+    }
 
     class Item(ApiModel):
-        attrs = ['begins_at', 'close_price']
+        attributes = {
+            'begins_at': datetime,
+            'close_price': float
+        }
 
-
-# Certain chart spans can only be used with certain data intervals.
-# This defines each interval to its highest logical resolution.
-SPAN_INTERVALS = {
-    'day': '5minute',
-    'week': '10minute',
-    'year': 'day',
-    '5year': 'week',
-    'all': 'week'
-}
-
-def chart_data(symbol, span="day"):
-    pool = ThreadPool(processes=1)
-    quote_thread_result = pool.apply_async(Quote.get, (symbol,))
-
-    interval = SPAN_INTERVALS[span]
-
-    options = {
-        'span': span,
-        'interval': interval
+class Market(ApiResource):
+    endpoint_path = "/markets"
+    attributes = {
+        'name': str,
+        'acronym': str,
+        'mic': str,
+        'timezone': str
     }
-    if span == 'day':
-        options['bounds'] = 'trading'
-    historicals = Historicals.list(symbol, **options)
 
-    time_values = []
-    price_values = []
-    for historical in historicals:
-        time_values.append(dateparser.parse(historical.begins_at))
-        price_values.append(float(historical.close_price))
+    class Hours(ApiResource):
+        endpoint_path = "/hours"
+        attributes = {
+            'opens_at': datetime,
+            'closes_at': datetime,
+            'extended_opens_at': datetime,
+            'extended_closes_at': datetime,
+            'is_open': bool ,
+            'previous_open_hours': str
+        }
 
-    if historicals.previous_close_price:
-        last_closing_price = float(historicals.previous_close_price)
-    else:
-        last_closing_price = float(historicals.items[0].close_price)
-
-    quote = quote_thread_result.get()
-    current_price = float(quote.last_trade_price)
-
-    return pd.Series(price_values, index=time_values), last_closing_price, current_price
+    @classmethod
+    def hours(cls, market_mic, date):
+        if isinstance(date, datetime):
+            date = date.strftime("%Y-%m-%d")
+        print(dir(Market))
+        base_url = cls.resource_url(market_mic)
+        resource_url = "{}hours/{}/".format(base_url, date)
+        data = ApiResource.request(resource_url)
+        if data:
+            return Market.Hours(**data)
+        else:
+            return None

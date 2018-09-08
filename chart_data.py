@@ -35,16 +35,16 @@ class ChartData():
         time_values = []
         price_values = []
         for historical in historicals:
-            time_values.append(dateparser.parse(historical.begins_at))
-            price_values.append(float(historical.close_price))
+            time_values.append(historical.begins_at)
+            price_values.append(historical.close_price)
 
         if historicals.previous_close_price:
-            last_closing_price = float(historicals.previous_close_price)
+            last_closing_price = historicals.previous_close_price
         else:
-            last_closing_price = float(historicals.items[0].close_price)
+            last_closing_price = historicals.items[0].close_price
 
         quote = quote_thread_result.get()
-        current_price = float(quote.last_trade_price)
+        current_price = quote.last_trade_price
 
         self.series = pd.Series(price_values, index=time_values)
         self.last_closing_price = last_closing_price
