@@ -47,16 +47,14 @@ def generate_chart(chart_data):
     figure, axis = plt.subplots(1, figsize=(7, 3))
 
     # Week charts are ugly due to gaps in after-hours/weekend trading activity.
-    # Re-index these graphs in a way that hides the gaps (at the cost of accuracy)
+    # Re-index these graphs in a way that hides the gaps (at the cost of time accuracy)
     if span == 'week':
         new_index = []
-        start_date = series.index[0]
-        date_diff = series.index[1] - series.index[0]
+        new_date = series.index[0]
+        time_diff = (series.index[-1] - series.index[0]).total_seconds()
+        spread_factor = time_diff / len(series.index)
         for n in range(0, len(series.index)):
-            # The ratio of 24 hours in a day to the 6.5 business hours in a trading day
-            # is 24 / 6.5, or about 3.692. We use this multiple to determine how to
-            # space out these new fake timestamps
-            new_date = start_date + timedelta(seconds=date_diff.seconds * 3.692 * n)
+            new_date += timedelta(seconds=spread_factor)
             new_index.append(new_date)
         series = pd.Series(series.values, index=new_index)
 
