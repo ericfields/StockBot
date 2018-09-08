@@ -3,10 +3,13 @@ from datetime import datetime
 from dateutil import parser as dateparser
 import re
 
+from django.core.cache import cache
+
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
 class ApiModel():
     attributes = {}
+    cached = False
 
     def __init__(self, **data):
         self._assign_attributes(data)
@@ -51,7 +54,7 @@ class ApiResource(ApiModel):
 
     @classmethod
     def get(cls, resource_id):
-        data = ApiResource.request(cls.resource_url(resource_id))
+        data = cls.request(cls.resource_url(resource_id))
         if data:
             return cls(**data)
         else:
@@ -59,7 +62,7 @@ class ApiResource(ApiModel):
 
     @classmethod
     def search(cls, **params):
-        data = ApiResource.request(cls.resource_url(), **params)
+        data = cls.request(cls.resource_url(), **params)
         if data and 'results' in data:
             return [cls(**result) for result in data['results']]
 
@@ -70,7 +73,7 @@ class ApiResource(ApiModel):
         except NameError:
             raise Exception("Class is not listable: No Item subclass is defined within this class")
 
-        data = ApiResource.request(cls.resource_url(resource_id), **params)
+        data = cls.request(cls.resource_url(resource_id), **params)
 
         if data:
             obj = cls(**data)
@@ -82,8 +85,8 @@ class ApiResource(ApiModel):
             return None
 
     # Makes a request to Robinhood to retrieve data
-    @staticmethod
-    def request(resource_url, **params):
+    @classmethod
+    def request(cls, resource_url, **params):
         if params:
             param_strs = []
             for key in params:
@@ -94,7 +97,15 @@ class ApiResource(ApiModel):
                 param_strs.append("{}={}".format(key, val))
 
             resource_url += '?' + '&'.join(param_strs)
-        response = requests.get(resource_url)
+
+        response = None
+        if cls.cached:
+            response = cache.get(resource_url)
+        if not response:
+            response = requests.get(resource_url)
+            if cls.cached:
+                cache.set(resource_url, response)
+
         if response.status_code == 200:
             return response.json()
         elif response.status_code == 400:
@@ -133,6 +144,7 @@ class Quote(ApiResource):
 
 class Instrument(ApiResource):
     endpoint_path = "/instruments"
+    cached = True
     attributes = {
         'symbol': str,
         'simple_name': str,
@@ -141,6 +153,7 @@ class Instrument(ApiResource):
 
 class Fundamentals(ApiResource):
     endpoint_path = "/fundamentals"
+    cached = True
     attributes = {
         'description': str
     }
@@ -159,6 +172,7 @@ class Historicals(ApiResource):
 
 class Market(ApiResource):
     endpoint_path = "/markets"
+    cached = True
     attributes = {
         'name': str,
         'acronym': str,
@@ -181,10 +195,9 @@ class Market(ApiResource):
     def hours(cls, market_mic, date):
         if isinstance(date, datetime):
             date = date.strftime("%Y-%m-%d")
-        print(dir(Market))
         base_url = cls.resource_url(market_mic)
         resource_url = "{}hours/{}/".format(base_url, date)
-        data = ApiResource.request(resource_url)
+        data = cls.request(resource_url)
         if data:
             return Market.Hours(**data)
         else:

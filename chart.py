@@ -48,14 +48,14 @@ class Chart():
         # Format day chart for hourly display and show after-market time
         if self.span == 'day':
             now = datetime.now(self.market_timezone)
-            last_time_to_display = self.get_market_hours().extended_closes_at
+            last_time_to_display = self.market_hours.extended_closes_at
 
             # Indicate times outside trading hours
-            market_open_time = self.get_market_hours().opens_at
+            market_open_time = self.market_hours.opens_at
             self.axis.axvspan(self.series.index[0], market_open_time,
                 facecolor='grey', alpha=0.1)
 
-            market_close_time = self.get_market_hours().closes_at
+            market_close_time = self.market_hours.closes_at
             self.axis.axvspan(market_close_time, last_time_to_display,
                 facecolor='grey', alpha=0.1)
             time_format = mdates.DateFormatter("%-I %p", self.market_timezone)
