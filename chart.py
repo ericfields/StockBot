@@ -2,13 +2,10 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import parser as dateparser
 from pytz import timezone
-import pandas as pd
-from time import sleep
-from robinhood import Quote, Historicals
-from multiprocessing.pool import ThreadPool
 from io import BytesIO
 
 # Define latest time to show on chart
@@ -32,35 +29,6 @@ def time_for_today(selected_time):
         microsecond=0
     )
 
-def get_robinhood_chart_data(symbol, span="day"):
-    pool = ThreadPool(processes=1)
-    quote_thread_result = pool.apply_async(Quote.get, (symbol,))
-
-    span_intervals = {
-        'day': '5minute',
-        'week': '1hour',
-        'year': 'day',
-        '5year': 'week',
-        'all': 'week'
-    }
-
-    interval = span_intervals[span]
-
-    historicals = Historicals.list(symbol, span=span, interval=interval, bounds='trading')
-
-    time_values = []
-    price_values = []
-    for historical in historicals:
-        time_values.append(dateparser.parse(historical.begins_at))
-        price_values.append(float(historical.close_price))
-
-    last_closing_price = float(historicals.previous_close_price)
-
-    quote = quote_thread_result.get()
-    current_price = float(quote.last_trade_price)
-
-    return pd.Series(price_values, index=time_values), last_closing_price, current_price
-
 # Return market color as RGBA value
 def get_market_color(is_positive):
     if is_positive:
@@ -68,20 +36,29 @@ def get_market_color(is_positive):
     else:
         return [1, 0, 0, 1] # red
 
-def generate_chart(symbol, company_name = None):
-    series, last_closing_price, current_price = get_robinhood_chart_data(symbol)
+def generate_chart(chart_data):
+    series = chart_data.series
+    last_closing_price = chart_data.last_closing_price
+    current_price = chart_data.current_price
+    symbol = chart_data.symbol
+    company_name = chart_data.company_name
+    span = chart_data.span
 
     figure, axis = plt.subplots(1, figsize=(7, 3))
 
-    time_format = mdates.DateFormatter("%-I %p")
-    axis.xaxis.set_major_formatter(time_format)
-
-    # Show the graph as green if the stock's up, or red if it's down
-    market_color = get_market_color(current_price >= last_closing_price)
-
-    axis.text(0.6, 0.9, round(current_price, 2),
-        transform=plt.gcf().transFigure,
-        fontsize=14)
+    # Week charts are ugly due to gaps in after-hours/weekend trading activity.
+    # Re-index these graphs in a way that hides the gaps (at the cost of accuracy)
+    if span == 'week':
+        new_index = []
+        start_date = series.index[0]
+        date_diff = series.index[1] - series.index[0]
+        for n in range(0, len(series.index)):
+            # The ratio of 24 hours in a day to the 6.5 business hours in a trading day
+            # is 24 / 6.5, or about 3.692. We use this multiple to determine how to
+            # space out these new fake timestamps
+            new_date = start_date + timedelta(seconds=date_diff.seconds * 3.692 * n)
+            new_index.append(new_date)
+        series = pd.Series(series.values, index=new_index)
 
     if company_name:
         if len(company_name) > 32:
@@ -92,18 +69,36 @@ def generate_chart(symbol, company_name = None):
 
     axis.set_title(title, x=0.2)
 
-    # Fix graph x-axis to market hours
-    now = datetime.now(MARKET_TIMEZONE)
-    last_time_to_display = time_for_today(AFTER_HOURS_TIME)
-    if now < time_for_today(MARKET_OPEN_TIME):
-        last_time_to_display -= timedelta(days=1)
+    # Format day chart for hourly display and show after-market time
+    if span == 'day':
+        now = datetime.now(MARKET_TIMEZONE)
+        last_time_to_display = time_for_today(AFTER_HOURS_TIME)
+        if now < time_for_today(MARKET_OPEN_TIME):
+            last_time_to_display -= timedelta(days=1)
 
+        time_format = mdates.DateFormatter("%-I %p")
+    else:
+        time_diff = series.index[-1] - series.index[0]
+        if time_diff < timedelta(weeks=4):
+            time_format = mdates.DateFormatter("%-m/%-d")
+        else:
+            time_format = mdates.DateFormatter("%-m/%y")
+        last_time_to_display = series.index[-1]
+
+    axis.xaxis.set_major_formatter(time_format)
     axis.set_xlim(series.index[0], last_time_to_display)
 
     axis.margins(0.1)
     axis.grid(True, linewidth=0.2)
 
+    # Show the graph as green if the stock's up, or red if it's down
+    market_color = get_market_color(current_price >= last_closing_price)
+
     axis.plot(series, color=market_color)
+
+    axis.text(0.55, 0.9, "${}".format(round(current_price, 2)),
+        transform=plt.gcf().transFigure,
+        fontsize=14)
 
     # Show the latest price/change on the graph
     price_change = round(current_price - last_closing_price, 2)
@@ -114,7 +109,7 @@ def generate_chart(symbol, company_name = None):
     percentage_change = round(price_change / last_closing_price * 100, 2)
 
     price_change_str = "{}{} ({}%)".format(change_sign, abs(price_change), percentage_change)
-    axis.text(0.8, 0.9, price_change_str,
+    axis.text(0.73, 0.9, price_change_str,
         transform=plt.gcf().transFigure,
         color = market_color,
         fontsize=12)

@@ -1,4 +1,7 @@
 import requests
+import pandas as pd
+from multiprocessing.pool import ThreadPool
+from dateutil import parser as dateparser
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
@@ -98,7 +101,6 @@ class ApiResource(ApiModel):
     def __next__(self):
         return next(__iter__())
 
-
 class Quote(ApiResource):
     endpoint_path = "/quotes"
     attrs = ['symbol', 'last_trade_price']
@@ -117,3 +119,44 @@ class Historicals(ApiResource):
 
     class Item(ApiModel):
         attrs = ['begins_at', 'close_price']
+
+
+# Certain chart spans can only be used with certain data intervals.
+# This defines each interval to its highest logical resolution.
+SPAN_INTERVALS = {
+    'day': '5minute',
+    'week': '10minute',
+    'year': 'day',
+    '5year': 'week',
+    'all': 'week'
+}
+
+def chart_data(symbol, span="day"):
+    pool = ThreadPool(processes=1)
+    quote_thread_result = pool.apply_async(Quote.get, (symbol,))
+
+    interval = SPAN_INTERVALS[span]
+
+    options = {
+        'span': span,
+        'interval': interval
+    }
+    if span == 'day':
+        options['bounds'] = 'trading'
+    historicals = Historicals.list(symbol, **options)
+
+    time_values = []
+    price_values = []
+    for historical in historicals:
+        time_values.append(dateparser.parse(historical.begins_at))
+        price_values.append(float(historical.close_price))
+
+    if historicals.previous_close_price:
+        last_closing_price = float(historicals.previous_close_price)
+    else:
+        last_closing_price = float(historicals.items[0].close_price)
+
+    quote = quote_thread_result.get()
+    current_price = float(quote.last_trade_price)
+
+    return pd.Series(price_values, index=time_values), last_closing_price, current_price
