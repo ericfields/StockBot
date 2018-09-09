@@ -5,6 +5,7 @@ from chart import Chart
 from chart_data import ChartData
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import cache_page
 from datetime import datetime
 import json
 
@@ -87,6 +88,7 @@ def graph_POST(request):
     return HttpResponse(json.dumps(response), content_type="application/json")
 
 @csrf_exempt
+@cache_page(60)
 def graph_img(request, img_name):
     parts = img_name.split("_")
     symbol = parts[0]

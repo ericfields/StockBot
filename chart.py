@@ -55,6 +55,10 @@ class Chart():
             self.axis.axvspan(self.series.index[0], market_open_time,
                 facecolor='grey', alpha=0.1)
 
+            # Add a dashed line indicating the opening price
+            self.axis.axhline(self.last_closing_price,
+                linestyle='dotted', color='grey', linewidth=1.2)
+
             market_close_time = self.market_hours.closes_at
             self.axis.axvspan(market_close_time, last_time_to_display,
                 facecolor='grey', alpha=0.1)
