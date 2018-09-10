@@ -20,7 +20,7 @@ class Chart():
         self.market_hours = self.get_market_hours()
 
         self.series = chart_data.series
-        self.last_closing_price = chart_data.last_closing_price
+        self.initial_price = chart_data.initial_price
         self.current_price = chart_data.current_price
         self.symbol = chart_data.symbol
         self.company_name = chart_data.company_name
@@ -56,7 +56,7 @@ class Chart():
                 facecolor='grey', alpha=0.1)
 
             # Add a dashed line indicating the opening price
-            self.axis.axhline(self.last_closing_price,
+            self.axis.axhline(self.initial_price,
                 linestyle='dotted', color='grey', linewidth=1.2)
 
             market_close_time = self.market_hours.closes_at
@@ -69,6 +69,12 @@ class Chart():
                 time_format = mdates.DateFormatter("%-m/%-d")
             else:
                 time_format = mdates.DateFormatter("%-m/%y")
+            # Add current price to graph in case it has changed after hours
+            last_time = self.series.index[-1]
+            if self.series[last_time] != self.current_price:
+                time_delta = last_time - self.series.index[-2]
+                self.series.at[last_time + time_delta] = self.current_price
+
             last_time_to_display = self.series.index[-1]
 
         self.axis.xaxis.set_major_formatter(time_format)
@@ -76,9 +82,6 @@ class Chart():
 
         self.axis.margins(0.1)
         self.axis.grid(True, linewidth=0.2)
-
-        self.current_price = self.current_price
-        self.last_closing_price = self.last_closing_price
 
         # Show the graph as green if the stock's up, or red if it's down
         market_color = self.__get_market_color()
@@ -92,12 +95,12 @@ class Chart():
             fontsize=15)
 
         # Show the latest price/change on the graph
-        price_change = self.current_price - self.last_closing_price
+        price_change = self.current_price - self.initial_price
         if price_change >= 0:
             change_sign = '+'
         else:
             change_sign = '-'
-        percentage_change = round(price_change / self.last_closing_price * 100, 2)
+        percentage_change = round(price_change / self.initial_price * 100, 2)
 
         if self.current_price < 0.1:
             point_change = round(abs(price_change), 4)
@@ -148,7 +151,7 @@ class Chart():
 
     # Return market color as RGBA value
     def __get_market_color(self):
-        if self.current_price >= self.last_closing_price:
+        if self.current_price >= self.initial_price:
             return [0, 0.5, 0, 1] # green
         else:
             return [1, 0, 0, 1] # red

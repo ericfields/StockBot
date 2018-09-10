@@ -39,14 +39,14 @@ class ChartData():
             price_values.append(historical.close_price)
 
         if historicals.previous_close_price:
-            last_closing_price = historicals.previous_close_price
+            initial_price = historicals.previous_close_price
         else:
-            last_closing_price = historicals.items[0].close_price
+            initial_price = historicals.items[0].open_price
 
         quote = quote_thread_result.get()
-        current_price = quote.last_trade_price
+        current_price = quote.last_extended_hours_trade_price
 
         self.series = pd.Series(price_values, index=time_values)
-        self.last_closing_price = last_closing_price
+        self.initial_price = initial_price
         self.current_price = current_price
         self.span = span

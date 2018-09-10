@@ -141,7 +141,8 @@ class Quote(ApiResource):
     endpoint_path = "/quotes"
     attributes = {
         'symbol': str,
-        'last_trade_price': float
+        'last_trade_price': float,
+        'last_extended_hours_trade_price': float
     }
 
 class Instrument(ApiResource):
@@ -169,6 +170,7 @@ class Historicals(ApiResource):
     class Item(ApiModel):
         attributes = {
             'begins_at': datetime,
+            'open_price': float,
             'close_price': float
         }
 
