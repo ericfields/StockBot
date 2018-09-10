@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime
 from dateutil import parser as dateparser
+import pytz
 import re
 
 from django.core.cache import cache
@@ -36,7 +37,8 @@ class ApiModel():
         elif type == val:
             return int()
         elif type == datetime:
-            return dateparser.parse(val)
+            date = dateparser.parse(val).astimezone(pytz.utc).replace(tzinfo=None)
+            return date
         elif type == bool:
             return val in [True, 'true', 'True', 't', 1]
         else:
