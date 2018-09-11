@@ -44,7 +44,7 @@ class ChartData():
             initial_price = historicals.items[0].open_price
 
         quote = quote_thread_result.get()
-        current_price = quote.last_extended_hours_trade_price
+        current_price = quote.last_extended_hours_trade_price or quote.last_trade_price
 
         self.series = pd.Series(price_values, index=time_values)
         self.initial_price = initial_price
