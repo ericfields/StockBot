@@ -44,7 +44,7 @@ class ChartData():
         if historicals.previous_close_price:
             initial_price = historicals.previous_close_price
         else:
-            initial_price = historicals.items[0].open_price
+            initial_price = price_values[0]
 
         self.series = pd.Series(price_values, index=time_values)
         self.initial_price = initial_price
