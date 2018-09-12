@@ -16,6 +16,7 @@ def index(request):
 
 @csrf_exempt
 def info_GET(request, symbol):
+    symbol = symbol.upper()
     fundamentals = Fundamentals.get(symbol)
     response = (fundamentals.description if fundamentals else "Stock was not found")
     return HttpResponse(response)
@@ -26,6 +27,8 @@ def info_POST(request):
 
     if not symbol:
         return HttpResponse("No stock was specified")
+
+    symbol = symbol.upper()
 
     fundamentals = Fundamentals.get(symbol)
     response = fundamentals.description if fundamentals else 'Stock was not found'
