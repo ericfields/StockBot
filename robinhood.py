@@ -151,7 +151,8 @@ class Instrument(ApiResource):
     attributes = {
         'symbol': str,
         'simple_name': str,
-        'name': str
+        'name': str,
+        'list_date': datetime
     }
 
 class Fundamentals(ApiResource):
@@ -171,7 +172,8 @@ class Historicals(ApiResource):
         attributes = {
             'begins_at': datetime,
             'open_price': float,
-            'close_price': float
+            'close_price': float,
+            'interpolated': bool
         }
 
 class Market(ApiResource):
