@@ -61,8 +61,8 @@ def graph_POST(request):
 
     symbol = parts[0].upper()
     if len(parts) > 1:
-        span = __str_to_duration(parts[1])
-        if not span:
+        span = parts[1]
+        if not __str_to_duration(span):
             return json_error_response("Invalid span '{}'. Must be time unit and/or number, e.g. '3month'".format(span))
     else:
         span = 'day'
@@ -95,17 +95,18 @@ def graph_img(request, img_name):
     parts = img_name.split("_")
     symbol = parts[0]
     if len(parts) > 2:
-        span = __str_to_duration(parts[2])
-        if not span:
+        span = parts[2]
+        actual_span = __str_to_duration(span)
+        if not actual_span:
             return HttpResponse("Invalid span '{}'. Must be time unit and/or number, e.g. '3month'".format(span))
     else:
-        span = 'day'
+        actual_span = timedelta(days=1)
 
     instrument = get_instrument(symbol)
     if not instrument:
         return HttpResponse("Stock not found")
 
-    return chart_img(instrument, span)
+    return chart_img(instrument, actual_span)
 
 def chart_img(instrument, span=timedelta(days=1)):
     chart_data = ChartData(instrument, span)
