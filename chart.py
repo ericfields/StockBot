@@ -21,8 +21,7 @@ class Chart():
     # Colored areas indicating non-trading hours for day chart
     after_hours_tint = {'facecolor': 'grey', 'alpha': 0.1}
 
-    title_layout = {'horizontalalignment': 'left',
-        'x': 0.0, 'y': 1.15}
+    title_layout = {'horizontalalignment': 'left', 'x': 0.0, 'y': 1.15}
     max_title_length = 64
 
     # Style for line indicating the opening price
@@ -90,9 +89,9 @@ class Chart():
         if timespan <= timedelta(days=1):
             time_format = self.hourly_format
             self.__show_day_chart_options()
-        elif timespan < timedelta(weeks=4):
+        elif timespan <= timedelta(days=120):
             time_format = self.daily_format
-        elif timespan < timedelta(weeks=208):
+        elif timespan <= timedelta(days=365*4):
             time_format = self.monthly_format
         else:
             time_format = self.yearly_format

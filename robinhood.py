@@ -99,7 +99,6 @@ class ApiResource(ApiModel):
                 param_strs.append("{}={}".format(key, val))
 
             resource_url += '?' + '&'.join(param_strs)
-
         response = None
         if cls.cached:
             response = cache.get(resource_url)

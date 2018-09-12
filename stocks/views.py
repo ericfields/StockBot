@@ -1,4 +1,4 @@
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from robinhood import Instrument, Fundamentals
 from chart import Chart
@@ -6,8 +6,9 @@ from chart_data import ChartData
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.cache import cache_page
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
+import re
 
 # Create your views here.
 def index(request):
@@ -45,10 +46,11 @@ def graph_GET(request, symbol = None, span = 'day'):
     if not instrument:
         return HttpResponse("Stock not found")
 
-    if not valid_span(span):
-        return HttpResponse("Invalid span '{}'. Must be one of: day, week, year, 5year, all".format(span))
+    actual_span = __str_to_duration(span)
+    if not actual_span:
+        return HttpResponseBadRequest("Invalid span '{}'. Must be time unit and/or number, e.g. '3month'".format(span))
 
-    return chart_img(instrument, span)
+    return chart_img(instrument, actual_span)
 
 @csrf_exempt
 def graph_POST(request):
@@ -59,9 +61,9 @@ def graph_POST(request):
 
     symbol = parts[0].upper()
     if len(parts) > 1:
-        span = valid_span(parts[1])
+        span = __str_to_duration(parts[1])
         if not span:
-            return json_error_response("Invalid span '{}'. Must be one of: day, week, year, 5year, all".format(span))
+            return json_error_response("Invalid span '{}'. Must be time unit and/or number, e.g. '3month'".format(span))
     else:
         span = 'day'
 
@@ -93,9 +95,9 @@ def graph_img(request, img_name):
     parts = img_name.split("_")
     symbol = parts[0]
     if len(parts) > 2:
-        span = valid_span(parts[2])
+        span = __str_to_duration(parts[2])
         if not span:
-            return HttpResponse("Invalid span '{}'. Must be one of: day, week, year, 5year, all".format(span))
+            return HttpResponse("Invalid span '{}'. Must be time unit and/or number, e.g. '3month'".format(span))
     else:
         span = 'day'
 
@@ -105,7 +107,7 @@ def graph_img(request, img_name):
 
     return chart_img(instrument, span)
 
-def chart_img(instrument, span='day'):
+def chart_img(instrument, span=timedelta(days=1)):
     chart_data = ChartData(instrument, span)
     chart = Chart(chart_data)
     chart_img_data = chart.get_img_data()
@@ -124,16 +126,27 @@ def get_instrument(symbol):
 def json_error_response(text):
     return HttpResponse(json.dumps({"text": text}), content_type="application/json")
 
-def valid_span(span):
-    span = span.lower()
-    valid_spans = {
-        'd': 'day',
-        'w': 'week',
-        'y': 'year',
-        '5': '5year',
-        'a': 'all'
-    }
-    if span[0] not in valid_spans:
+def __str_to_duration(duration_str):
+    duration_str = duration_str.strip().lower()
+    match = re.match('^([0-9]+)?\s*(day|week|month|year|all|d|w|m|y|a)s?$', duration_str)
+    if not match:
         return None
 
-    return valid_spans[span[0]]
+    unit = match.groups()[1][0]
+    if unit == 'd':
+        duration = timedelta(days=1)
+    elif unit == 'w':
+        duration = timedelta(days=7)
+    elif unit == 'm':
+        duration = timedelta(days=31)
+    elif unit == 'y':
+        duration = timedelta(days=365)
+    elif unit == 'a':
+        # Max duration available is 5 years
+        return timedelta(days=365*5)
+
+    if match.groups()[0]:
+        # Multiply by provided duration
+        duration *= int(match.groups()[0])
+
+    return duration
