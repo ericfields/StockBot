@@ -66,17 +66,29 @@ class Chart():
         self.series = chart_data.series
         self.initial_price = chart_data.initial_price
         self.current_price = chart_data.current_price
+        self.updated_at = chart_data.updated_at
         self.symbol = chart_data.symbol
         self.security_name = chart_data.security_name
         self.span = chart_data.span
 
         self.figure, self.axis = plt.subplots(1, figsize=self.size)
 
-        timespan = self.series.index[-1] - self.series.index[0]
+        # Add current price to graph
+        if datetime.now() > self.market_hours.extended_closes_at:
+            # Showing the actual current quote time on an after-hours graph
+            # causes ugliness. Fake the time for the last datapoint instead.
+            last_graph_time = self.series.index[-1] + timedelta(minutes=5)
+        else:
+            last_graph_time = self.updated_at
+
+        self.series.at[last_graph_time] = self.current_price
+        self.axis.set_xlim(right=last_graph_time)
+
+        timespan = self.__get_timespan()
 
         # Week charts are ugly due to gaps in after-hours/weekend trading activity.
         # Re-index these graphs in a way that hides the gaps (at the cost of time accuracy)
-        if timespan < timedelta(weeks=2):
+        if timedelta(days=1) < timespan < timedelta(weeks=2):
             self.__normalize_indices()
 
         self.__show_title()
@@ -99,22 +111,12 @@ class Chart():
             mdates.DateFormatter(time_format, self.market_timezone)
         )
 
-        # Add current price to long-term graph if it has changed after hours
-        if timespan > timedelta(days=1):
-            last_time = self.series.index[-1]
-            if self.series[last_time] != self.current_price:
-                time_delta = last_time - self.series.index[-2]
-                self.series.at[last_time + time_delta] = self.current_price
-
-            self.axis.set_xlim(right=self.series.index[-1])
-
-
         self.axis.margins(self.margins)
         self.axis.grid(self.show_grid, **self.grid_style)
 
         self.__show_price_info()
 
-        self.__show_chart_date()
+        self.__show_chart_info()
 
         self.figure.subplots_adjust(top=self.top_spacing)
 
@@ -203,14 +205,69 @@ class Chart():
 
         self.axis.set_xlim(right=self.market_hours.extended_closes_at)
 
-    def __show_chart_date(self):
+    def __show_chart_info(self):
         # Show the date/time info
+        span_str = self.__get_timespan_str()
         date_str = datetime.now(self.market_timezone).strftime(
             self.chart_time_str_format)
-        self.axis.text(self.chart_time_pos[0], self.chart_time_pos[1], date_str,
+        info_str = span_str + "\n" + date_str
+
+        self.axis.text(self.chart_time_pos[0], self.chart_time_pos[1], info_str,
             transform=plt.gcf().transFigure,
             color = 'grey',
             fontsize=10)
+
+    # Get a string representing the duration of the graph
+    # Some rounding is done to keep the string "pretty"
+    # and to account for weekends, holidays, etc.
+    def __get_timespan_str(self):
+        days = self.__get_timespan() / timedelta(days=1)
+
+        unit = None
+        num = None
+
+        if days <= 1:
+            return 'Daily'
+        else:
+            unit_days = {
+                'year': 365,
+                'month': 30
+            }
+            for u in unit_days:
+                # Determine how far off we are from the current unit
+                ud = unit_days[u]
+                offset = Chart.offset(days, ud)
+                if offset < 0.1:
+                    unit = u
+                    num = round(days / unit_days[u])
+                    break
+
+            if not unit:
+                unit = 'day'
+                num = days
+
+        str = "{} {}".format(int(num), unit)
+        if num > 1:
+            str += 's'
+        return str
+
+    def offset(value, increment):
+        overage = value % increment
+        if overage == 0:
+            return 0
+        lower_diff = overage
+        upper_diff = increment - overage
+        return min(lower_diff, upper_diff) / increment
+
+    # Return timespan of graph data, to the nearest day
+    def __get_timespan(self):
+        if len(self.series) > 1:
+            td = self.series.index[-1] - self.series.index[0]
+            # Round to the nearest day
+            approx_days = round(td / timedelta(days=1))
+            return timedelta(days=approx_days)
+        else:
+            return timedelta(0)
 
     # Return graph color depending on whether price is up or down
     def __get_market_color(self):

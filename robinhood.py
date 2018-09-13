@@ -45,10 +45,18 @@ class ApiModel():
             return type(val)
 
 class ApiCallException(Exception):
+    code = None
+
+    def __init__(self, code, message):
+        self.code = code
+        super(message)
+
+class ApiInternalErrorException(ApiCallException):
     pass
 
 class ApiBadRequestException(ApiCallException):
-    pass
+    def __init__(self, message):
+        super(400, message)
 
 
 class ApiResource(ApiModel):
@@ -99,22 +107,36 @@ class ApiResource(ApiModel):
                 param_strs.append("{}={}".format(key, val))
 
             resource_url += '?' + '&'.join(param_strs)
-        response = None
-        if cls.cached:
-            response = cache.get(resource_url)
-        if not response:
-            response = requests.get(resource_url)
-            if cls.cached:
-                cache.set(resource_url, response)
 
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 400:
-            raise ApiBadRequestException(response.text)
-        elif response.status_code == 404:
-            return None
-        else:
-            raise ApiCallException(response.text)
+        if cls.cached:
+            # Check if we have a cache hit first
+            response = cache.get(resource_url)
+            if response:
+                return response.json()
+
+        attempts = 3
+
+        while True:
+            response = requests.get(resource_url)
+
+            if response.status_code == 200:
+                if cls.cached:
+                    # Cache response. Only successful calls are cached.
+                    cache.set(resource_url, response)
+
+                return response.json()
+            elif response.status_code == 400:
+                raise ApiBadRequestException(response.text)
+            elif response.status_code == 404:
+                return None
+            elif response.status_code > 500:
+                # Internal server error, retry
+                attempts -= 1
+                if attempts <= 0:
+                    raise ApiInternalErrorException(response.status_code, response.text)
+            else:
+                raise ApiCallException(response.status_code, response.text)
+
 
 
     @classmethod
@@ -141,7 +163,8 @@ class Quote(ApiResource):
     attributes = {
         'symbol': str,
         'last_trade_price': float,
-        'last_extended_hours_trade_price': float
+        'last_extended_hours_trade_price': float,
+        'updated_at': datetime
     }
 
 class Instrument(ApiResource):

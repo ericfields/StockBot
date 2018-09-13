@@ -34,13 +34,6 @@ class ChartData():
             time_values.append(historical.begins_at)
             price_values.append(historical.close_price)
 
-        # There is a chance that we are viewing this graph right at pre-market open,
-        # in which case historicals will be empty. Add the current price
-        # to the series instead.
-        if len(time_values) == 0:
-            time_values.append(datetime.now())
-            price_values.append(current_price)
-
         if historicals.previous_close_price:
             initial_price = historicals.previous_close_price
         else:
@@ -49,6 +42,7 @@ class ChartData():
         self.series = pd.Series(price_values, index=time_values)
         self.initial_price = initial_price
         self.current_price = current_price
+        self.updated_at = quote.updated_at
         self.span = span
 
     def __historical_params(self, instrument, span):
