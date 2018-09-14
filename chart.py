@@ -252,12 +252,15 @@ class Chart():
         return str
 
     def offset(value, increment):
-        overage = value % increment
-        if overage == 0:
-            return 0
-        lower_diff = overage
-        upper_diff = increment - overage
-        return min(lower_diff, upper_diff) / increment
+        if value > increment:
+            overage = value % increment
+            if overage == 0:
+                return 0
+            lower_diff = overage
+            upper_diff = increment - overage
+            return min(lower_diff, upper_diff) / increment
+        else:
+            return (increment - value) / increment
 
     # Return timespan of graph data, to the nearest day
     def __get_timespan(self):
