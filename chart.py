@@ -5,14 +5,7 @@ import matplotlib.dates as mdates
 import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import parser as dateparser
-from pytz import timezone
 from io import BytesIO
-
-from robinhood import Market
-
-# Define latest time to show on chart
-
-MARKET = 'XNYS'
 
 class Chart():
     # Size of the overall chart
@@ -60,15 +53,16 @@ class Chart():
     top_spacing = 0.8
 
     def __init__(self, chart_data):
-        self.market_timezone = timezone(Market.get(MARKET).timezone)
-        self.market_hours = self.get_market_hours()
+        self.market_timezone = chart_data.get_market_timezone()
+        self.market_hours = chart_data.market_hours
 
         self.series = chart_data.series
         self.initial_price = chart_data.initial_price
         self.current_price = chart_data.current_price
         self.updated_at = chart_data.updated_at
-        self.symbol = chart_data.symbol
-        self.security_name = chart_data.security_name
+
+        self.title = chart_data.security_name
+
         self.span = chart_data.span
 
         self.figure, self.axis = plt.subplots(1, figsize=self.size)
@@ -120,14 +114,6 @@ class Chart():
 
         self.figure.subplots_adjust(top=self.top_spacing)
 
-    def get_market_hours(self):
-        market_hours = Market.hours(MARKET, datetime.now())
-        if not market_hours.is_open or datetime.now() < market_hours.extended_opens_at:
-            # Get market hours for the previous open day
-            date = market_hours.previous_open_hours.split('/')[-2]
-            market_hours = Market.hours(MARKET, date)
-        return market_hours
-
     def get_img_data(self):
         self.axis.plot(self.series, color=self.__get_market_color())
 
@@ -148,12 +134,9 @@ class Chart():
         self.series = pd.Series(self.series.values, index=new_index)
 
     def __show_title(self):
-        if self.security_name:
-            if len(self.security_name) > self.max_title_length:
-                self.security_name = self.security_name[0:max_title_length] + '...'
-            title = ("{} ({})".format(self.security_name, self.symbol))
-        else:
-            title = self.symbol
+        if len(self.title) > self.max_title_length:
+            self.title = self.title[0:max_title_length] + '...'
+        title = self.title
 
         self.axis.set_title(title, **self.title_layout)
 

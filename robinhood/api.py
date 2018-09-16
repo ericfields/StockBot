@@ -3,6 +3,8 @@ from datetime import datetime
 from dateutil import parser as dateparser
 import pytz
 import re
+import json
+from threading import Lock
 
 from django.core.cache import cache
 
@@ -10,7 +12,11 @@ ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
 class ApiModel():
     attributes = {}
-    cached = False
+    username = None
+    password = None
+    client_id = None
+    api_token = None
+    refresh_token = None
 
     def __init__(self, **data):
         self._assign_attributes(data)
@@ -49,18 +55,30 @@ class ApiCallException(Exception):
 
     def __init__(self, code, message):
         self.code = code
-        super(message)
+        message = "{}: {}".format(code, message)
+        super().__init__(message)
 
 class ApiInternalErrorException(ApiCallException):
     pass
 
+class ApiForbiddenException(ApiCallException):
+    def __init__(self, message = None):
+        if not message:
+            message = "Authentication expired or not provided"
+        super().__init__(403, message)
+
 class ApiBadRequestException(ApiCallException):
     def __init__(self, message):
-        super(400, message)
+        super().__init__(400, message)
 
 
 class ApiResource(ApiModel):
     endpoint_path = ''
+    authenticated = False
+    cached = False
+
+    # State variable to set while we are renewing our auth credentials
+    auth_lock = Lock()
 
     @classmethod
     def get(cls, resource_id):
@@ -72,9 +90,18 @@ class ApiResource(ApiModel):
 
     @classmethod
     def search(cls, **params):
+        results = []
         data = cls.request(cls.resource_url(), **params)
-        if data and 'results' in data:
-            return [cls(**result) for result in data['results']]
+        while data and 'results' in data:
+            results.extend([cls(**result) for result in data['results']])
+            if 'next' in data and data['next']:
+                # Keep requesting until all data has been returned
+                next_url = re.sub('\/', '/', data['next'])
+                data = cls.request(next_url)
+            else:
+                break
+
+        return results
 
     @classmethod
     def list(cls, resource_id, **params):
@@ -83,16 +110,59 @@ class ApiResource(ApiModel):
         except NameError:
             raise Exception("Class is not listable: No Item subclass is defined within this class")
 
+        list_key = cls.Item.list_key
         data = cls.request(cls.resource_url(resource_id), **params)
-
         if data:
             obj = cls(**data)
-            list_key = cls.__name__.lower()
             if list_key in data:
                 obj.items = [cls.Item(**item) for item in data[list_key]]
             return obj
         else:
             return None
+
+    @staticmethod
+    def authenticate():
+        auth_url = ROBINHOOD_ENDPOINT + "/oauth2/token/"
+        if ApiResource.refresh_token:
+            data = {
+                'grant_type': 'refresh_token',
+                'refresh_token': ApiResource.refresh_token,
+                'client_id': ApiResource.client_id
+            }
+        else:
+            data={
+                'grant_type': 'password',
+                'expires_in': 86400,
+                'username': ApiResource.username,
+                'password': ApiResource.password,
+                'client_id': ApiResource.client_id,
+                'scope': 'internal'
+            }
+
+        attempts = 3
+
+        ApiResource.auth_lock.acquire()
+        try:
+            if not ApiResource.api_token:
+                while True:
+                    try:
+                        response = requests.post(auth_url, headers={'Content-Type': 'application/json'}, data=json.dumps(data))
+                        break
+                    except requests.exceptions.ConnectionError:
+                        # Happens occasionally, retry
+                        attempts -= 1
+                        continue
+
+                if response.status_code != 200:
+                    ApiResource.api_token = None
+                    raise ApiForbiddenException(response.text)
+
+                data = response.json()
+                ApiResource.api_token = data['access_token']
+                ApiResource.refresh_token = data['refresh_token']
+                return True
+        finally:
+            ApiResource.auth_lock.release()
 
     # Makes a request to Robinhood to retrieve data
     @classmethod
@@ -116,8 +186,23 @@ class ApiResource(ApiModel):
 
         attempts = 3
 
+        headers = {}
+
         while True:
-            response = requests.get(resource_url)
+            if cls.authenticated:
+                if ApiResource.api_token:
+                    headers['Authorization'] = 'Bearer ' + ApiResource.api_token
+                else:
+                    ApiResource.authenticate()
+
+            try:
+                response = requests.get(resource_url, headers=headers)
+            except requests.exceptions.ConnectionError:
+                # Happens occasionally, retry
+                attempts -= 1
+                if attempts <= 0:
+                    raise ApiInternalErrorException(response.status_code, response.text)
+                continue
 
             if response.status_code == 200:
                 if cls.cached:
@@ -127,6 +212,9 @@ class ApiResource(ApiModel):
                 return response.json()
             elif response.status_code == 400:
                 raise ApiBadRequestException(response.text)
+            elif response.status_code == 403:
+                # Authentication may be expired, refresh credentials and retry
+                ApiResource.authenticate()
             elif response.status_code == 404:
                 return None
             elif response.status_code > 500:
@@ -136,8 +224,6 @@ class ApiResource(ApiModel):
                     raise ApiInternalErrorException(response.status_code, response.text)
             else:
                 raise ApiCallException(response.status_code, response.text)
-
-
 
     @classmethod
     def resource_url(cls, resource_id = None):
@@ -157,76 +243,3 @@ class ApiResource(ApiModel):
 
     def __next__(self):
         return next(__iter__())
-
-class Quote(ApiResource):
-    endpoint_path = "/quotes"
-    attributes = {
-        'symbol': str,
-        'last_trade_price': float,
-        'last_extended_hours_trade_price': float,
-        'updated_at': datetime
-    }
-
-class Instrument(ApiResource):
-    endpoint_path = "/instruments"
-    cached = True
-    attributes = {
-        'symbol': str,
-        'simple_name': str,
-        'name': str,
-        'list_date': datetime
-    }
-
-class Fundamentals(ApiResource):
-    endpoint_path = "/fundamentals"
-    cached = True
-    attributes = {
-        'description': str
-    }
-
-class Historicals(ApiResource):
-    endpoint_path = "/quotes/historicals"
-    attributes = {
-        'previous_close_price': float
-    }
-
-    class Item(ApiModel):
-        attributes = {
-            'begins_at': datetime,
-            'open_price': float,
-            'close_price': float,
-            'interpolated': bool
-        }
-
-class Market(ApiResource):
-    endpoint_path = "/markets"
-    cached = True
-    attributes = {
-        'name': str,
-        'acronym': str,
-        'mic': str,
-        'timezone': str
-    }
-
-    class Hours(ApiResource):
-        endpoint_path = "/hours"
-        attributes = {
-            'opens_at': datetime,
-            'closes_at': datetime,
-            'extended_opens_at': datetime,
-            'extended_closes_at': datetime,
-            'is_open': bool ,
-            'previous_open_hours': str
-        }
-
-    @classmethod
-    def hours(cls, market_mic, date):
-        if isinstance(date, datetime):
-            date = date.strftime("%Y-%m-%d")
-        base_url = cls.resource_url(market_mic)
-        resource_url = "{}hours/{}/".format(base_url, date)
-        data = cls.request(resource_url)
-        if data:
-            return Market.Hours(**data)
-        else:
-            return None
