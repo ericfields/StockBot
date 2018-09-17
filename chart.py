@@ -97,10 +97,20 @@ class Chart():
             self.__show_day_chart_options()
         elif timespan <= timedelta(days=120):
             time_format = self.daily_format
-        elif timespan <= timedelta(days=365*4):
+        elif timespan <= timedelta(days=365*3):
             time_format = self.monthly_format
         else:
             time_format = self.yearly_format
+            # Set ticks so that years aren't duplicated
+            year_ticks = []
+            prev_time = None
+            for time in self.series.index:
+                time = time.replace(tzinfo=self.market_timezone)
+                if prev_time and time.year > prev_time.year:
+                    year_ticks.append(time)
+                prev_time = time
+            self.axis.set_xticks(year_ticks)
+
         self.axis.xaxis.set_major_formatter(
             mdates.DateFormatter(time_format, self.market_timezone)
         )
