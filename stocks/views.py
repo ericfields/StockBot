@@ -202,7 +202,7 @@ def mattermost_graph(security_name, image_url):
         "response_type": "in_channel",
         "attachments": [
             {
-                "fallback": "{} Stock Graph".format(security_name),
+                "fallback": "{} Chart".format(security_name),
                 "text": security_name,
                 "image_url": image_url
             }
