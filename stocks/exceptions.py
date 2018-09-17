@@ -3,3 +3,6 @@ class BadRequestException(Exception):
 
 class ForbiddenException(Exception):
     pass
+
+class ConfigurationException(Exception):
+    pass

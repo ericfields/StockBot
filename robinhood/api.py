@@ -1,10 +1,12 @@
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil import parser as dateparser
 import pytz
 import re
 import json
 from threading import Lock
+from time import sleep
+from stocks.exceptions import ConfigurationException
 
 from django.core.cache import cache
 
@@ -17,6 +19,9 @@ class ApiModel():
     client_id = None
     api_token = None
     refresh_token = None
+
+    last_auth_time = None
+    auth_failure = None
 
     def __init__(self, **data):
         self._assign_attributes(data)
@@ -71,6 +76,10 @@ class ApiBadRequestException(ApiCallException):
     def __init__(self, message):
         super().__init__(400, message)
 
+class ApiThrottledException(ApiCallException):
+    def __init__(self, message):
+        super().__init__(429, message)
+
 
 class ApiResource(ApiModel):
     endpoint_path = ''
@@ -122,45 +131,69 @@ class ApiResource(ApiModel):
 
     @staticmethod
     def authenticate():
-        auth_url = ROBINHOOD_ENDPOINT + "/oauth2/token/"
-        if ApiResource.refresh_token:
-            data = {
-                'grant_type': 'refresh_token',
-                'refresh_token': ApiResource.refresh_token,
-                'client_id': ApiResource.client_id
-            }
-        else:
-            data={
-                'grant_type': 'password',
-                'expires_in': 86400,
-                'username': ApiResource.username,
-                'password': ApiResource.password,
-                'client_id': ApiResource.client_id,
-                'scope': 'internal'
-            }
+        if not (ApiResource.username and ApiResource.password):
+            raise ConfigurationException("Attempting to call authenticated endpoint, but no Robinhood credentials are configured for this server.")
 
-        attempts = 3
-
+        # Lock authentication calls so we do not attempt to authenticate multiple times unnecessarily
         ApiResource.auth_lock.acquire()
+
         try:
-            if not ApiResource.api_token:
-                while True:
-                    try:
-                        response = requests.post(auth_url, headers={'Content-Type': 'application/json'}, data=json.dumps(data))
-                        break
-                    except requests.exceptions.ConnectionError:
-                        # Happens occasionally, retry
-                        attempts -= 1
-                        continue
+            # If authentication has already failed, do not try again
+            if ApiResource.auth_failure:
+                raise ApiResource.auth_failure
 
-                if response.status_code != 200:
-                    ApiResource.api_token = None
-                    raise ApiForbiddenException(response.text)
-
-                data = response.json()
-                ApiResource.api_token = data['access_token']
-                ApiResource.refresh_token = data['refresh_token']
+            # If we just attempted authentication (i.e. in another asynchronous call) do not attempt again
+            if ApiResource.last_auth_time and datetime.now() - ApiResource.last_auth_time < timedelta(seconds=5):
                 return True
+
+            auth_url = ROBINHOOD_ENDPOINT + "/oauth2/token/"
+            if ApiResource.refresh_token:
+                data = {
+                    'grant_type': 'refresh_token',
+                    'refresh_token': ApiResource.refresh_token,
+                    'client_id': ApiResource.client_id
+                }
+            else:
+                data={
+                    'grant_type': 'password',
+                    'expires_in': 86400,
+                    'username': ApiResource.username,
+                    'password': ApiResource.password,
+                    'client_id': ApiResource.client_id,
+                    'scope': 'internal'
+                }
+
+            attempts = 3
+
+            while True:
+                try:
+                    response = requests.post(auth_url, headers={'Content-Type': 'application/json'}, data=json.dumps(data))
+                    if response.status_code < 500:
+                        break
+                except requests.exceptions.ConnectionError as e:
+                    # Occasional error
+                    if attempts <= 0:
+                        sleep(1)
+                        raise e
+
+                attempts -= 1
+
+            if response.status_code != 200:
+                if response.status_code == 429:
+                    raise ApiThrottledException(response.text)
+                if response.status_code == 403:
+                    error = ApiForbiddenException(response.text)
+                else:
+                    error = ApiCallException(response.status_code, response.text)
+                ApiResource.auth_failure = error
+                raise error
+
+            data = response.json()
+            ApiResource.api_token = data['access_token']
+            ApiResource.refresh_token = data['refresh_token']
+            ApiResource.last_auth_time = datetime.now()
+
+            return True
         finally:
             ApiResource.auth_lock.release()
 

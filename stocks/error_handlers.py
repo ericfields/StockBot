@@ -19,3 +19,5 @@ class HandleExceptionMiddleware(MiddlewareMixin):
             return HttpResponseBadRequest(message)
         elif isinstance(exception, ForbiddenException):
             return HttpResponseForbidden(message)
+        else:
+            return HttpResponse(message)
