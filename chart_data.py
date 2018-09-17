@@ -25,7 +25,12 @@ class ChartData():
             price_values.append(historical.close_price)
 
         self.series = pd.Series(price_values, index=time_values)
-        self.initial_price = initial_price or price_values[0]
+        if not initial_price:
+            for price in price_values:
+                if price > 0:
+                    initial_price = price
+                    break
+        self.initial_price = initial_price
         self.current_price = current_price
         self.updated_at = datetime.now()
         self.span = span
