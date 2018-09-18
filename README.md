@@ -14,7 +14,13 @@ Once installed, you can install this package's dependencies with pip as follows:
 pip install -r requirements.txt
 ```
 
-You can then run the app by starting the Django server.
+Next, run the following to execute the database migrations (you should only need to do this once):
+
+```
+python3 manage.py migrate
+```
+
+You can then start the app by running the Django server.
 
 ```
 python3 manage.py runserver
@@ -25,45 +31,66 @@ To run the server so that is externally accessible (not recommended if used in p
 sudo python3 manage.py runserver 0.0.0.0:80
 ```
 
-### Calling the Bot
+### Features
 
-#### Stock Charts
+You can create Mattermost outgoing hooks or slash commands for calling the bot. To call the stock graph endpoint for example, you could create a slash command that points to `http://[server-name]:[port]/stocks/graph`.
 
-You can create a Mattermost slash command for calling the bot, then invoke it by providing the stock ticker as its argument.
-* Create a Mattermost integration as an outgoing webhook or slash command, and provide your server endpoint with the path `/stocks/graph` as the request URL. For example: http://127.0.0.1:8000/stocks/graph.
-* Get a stock graph by invoking the command and with the stock ticker as its argument. For example, if you created a slash command called `/quote`, you would use: `/quote AAPL`
+#### Stocks
+
+Retrieve a stock chart for various stocks.
+
+Endpoint: `/stocks/graph`.
+
+To retrieve a day chart for AAPL:
+
+`[command-name] AAPL`
+
+You can retrieve charts for longer periods. To receive a chart for the past 10 days:
+
+`[command-name] AAPL 10days`
+
+Or you can abbreviate it:
+
+`[command-name] AAPL 10d`
+
+To see the entire history of AAPL (up to 5 years, the maximum Robinhood returns):
+
+`[command-name] AAPL all`
+
+You can retrieve time ranges with a granularity of days, weeks, months, or years:
+`[command-name] AAPL week [n][day(s)/week(s)/month(s)/year(s)/all/d/w/m/y/all/a]`
+
+The default is the day chart if no timespan is provided.
 
 
-This will return a graph with the requested stock chart for AAPL for the day.
+You can also retrieve a combined quote for multiple stocks at once.
+
+`[command-name] AAPL,GOOGL,AMZN [timespan]`
+
+The result is a graph which is a sum of all these stocks' performance.
+
+#### Options
+
+StockBot supports quoting for options as well. **Important**: The Robinhood endpoint for options history is authenticated. You will have to specify the username and password of a valid Robinhood account in the `config.py` file.
+
+Endpoint: `/stocks/option/graph`
+
+To retrieve a chart of an MU $50.5 call expiring November 16 (this year):
+
+`/[command-name] MU 50.5C 11-16`
+
+To retrieve a chart of a put for the same price, expiring January 18, 2019:
+
+`/[command-name] MU 50.5P 1-18-2019`
+
+# GET endpoints:
 
 For testing or other purposes, there is also a standard GET endpoint configured for viewing charts. You can visit the endpoint /stocks/graph/[stock_ticker] to retrieve a PNG image of the graph. For example, to get a PNG of the latest AAPL graph for the day: http://127.0.0.1:8000/stocks/graph/AAPL
 
 You can expand the date range you request a graph for:
-* GET request URL examples:
-  * Past week:
-    * `/stocks/graph/AAPL/week`
-    * `/stocks/graph/AAPL/w`
-  * Past 10 days:
-    * `/stocks/graph/AAPL/10days`
-    * `/stocks/graph/AAPL/10d`
-  * Past 2 years:
-    * `/stocks/graph/AAPL/2year`
-    * `/stocks/graph/AAPL/2y`
-  * Full history (as far back as 5 years, max data Robinhood contains):
-    * `/stocks/graph/AAPL/all`
-    * `/stocks/graph/AAPL/a`
-* Mattermost example commands (Command named /quote pointing to /stocks/graph):
-  * `/[command-name] AAPL 1y`
-  * `/[command-name] AAPL all`
-
-#### Option Charts (authentication required)
-
-You can also retrieve a chart for a stock option, at the endpoint `/stocks/option/graph`. Note however that the endpoint for retrieving Options history is authenticated, and thus you will have to provide credentials for a valid Robinhood account in your config.py file.
-
-For example, to view an option for an MU $90 call expiring December 21 of that year:
-* MU $50 call option expiring November 16 of current year
-  * GET request: `/stocks/option/MU/50C/11-16/`
-  * Mattermost: `/[command-name] MU 50C 11-16`
-* MU $40 put option expiring January 18, 2019
-  * GET request: `/stocks/option/graph/MU/40P/1-18-19`
-  * Mattermost: `/[command-name] MU 40P 1-18-19`
+* Stocks
+  * `/stocks/graph/AAPL`: Day chart of AAPL
+  * `/stocks/graph/AAPL/1W`: Chart of AAPL for the past week
+* Options
+* `/stocks/option/graph/MU/50.5C/12-21`: MU 50.5 call expiring 12/21 (current year)
+* `/stocks/option/graph/MU/50.5P/1-18-2019`: MU 50.5 put expiring 1/21/2019
