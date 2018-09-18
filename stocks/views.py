@@ -45,6 +45,8 @@ def graph_GET(request, identifier, span = 'day'):
     span = __str_to_duration(span)
 
     identifiers = identifier.split(',')
+    # Remove duplicates by converting to set (and back)
+    identifiers = list(set(identifiers))
 
     instruments = [find_instrument(id) for id in identifiers]
 
@@ -67,6 +69,8 @@ def graph_POST(request):
         raise BadRequestException("No arguments provided")
 
     symbols = parts[0].upper().split(',')
+    # Remove duplicates by converting to set (and back)
+    symbols = list(set(symbols))
 
     if len(parts) > 1:
         span = parts[1]
@@ -82,7 +86,7 @@ def graph_POST(request):
     image_url = request.build_absolute_uri(
         request.get_full_path() + "/image/" + img_file_name)
 
-    return mattermost_graph(','.join(symbols), image_url)
+    return mattermost_graph(', '.join(symbols), image_url)
 
 @csrf_exempt
 def option_graph_GET(request, identifier, price_str, expiration, span = 'day'):
@@ -137,8 +141,8 @@ def graph_img(request, img_name):
 
     span = __str_to_duration(span)
     instruments = [find_instrument(identifier) for identifier in identifiers]
-    if len(identifiers) == 1:
-        name = __stock_name(identifiers[0])
+    if len(instruments) == 1:
+        name = __stock_name(instruments[0])
     else:
         name = ', '.join(instrument.symbol for instrument in instruments)
     print(name)
