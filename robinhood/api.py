@@ -34,6 +34,15 @@ class ApiModel():
             elif attr not in locals():
                 # Initialize all missing attributes as None
                 setattr(self, attr, None)
+        # Load variables for list items if they exist
+        try:
+            item_class = self.__class__.Item
+            list_key = item_class.list_key
+            if list_key in data:
+                self.items = [item_class(**item) for item in data[list_key]]
+        except AttributeError:
+            # Not a listable item class
+            pass
 
     def _typed_attribute(self, attr, val):
         if val == None:
@@ -90,14 +99,6 @@ class ApiResource(ApiModel):
     auth_lock = Lock()
 
     @classmethod
-    def get(cls, resource_id):
-        data = cls.request(cls.resource_url(resource_id))
-        if data:
-            return cls(**data)
-        else:
-            return None
-
-    @classmethod
     def search(cls, **params):
         results = []
         data = cls.request(cls.resource_url(), **params)
@@ -113,21 +114,13 @@ class ApiResource(ApiModel):
         return results
 
     @classmethod
-    def list(cls, resource_id, **params):
-        try:
-            cls.Item
-        except NameError:
-            raise Exception("Class is not listable: No Item subclass is defined within this class")
-
-        list_key = cls.Item.list_key
+    def get(cls, resource_id, **params):
         data = cls.request(cls.resource_url(resource_id), **params)
         if data:
-            obj = cls(**data)
-            if list_key in data:
-                obj.items = [cls.Item(**item) for item in data[list_key]]
-            return obj
+            return cls(**data)
         else:
             return None
+
 
     @staticmethod
     def authenticate():

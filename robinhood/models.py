@@ -14,7 +14,8 @@ class Quote(ApiResource):
         'symbol': str,
         'last_trade_price': float,
         'last_extended_hours_trade_price': float,
-        'updated_at': datetime
+        'updated_at': datetime,
+        'instrument': str
     }
 
 class Instrument(ApiResource):
@@ -26,7 +27,8 @@ class Instrument(ApiResource):
         'simple_name': str,
         'name': str,
         'list_date': datetime,
-        'tradable_chain_id': str
+        'tradable_chain_id': str,
+        'url': str
     }
 
 class Fundamentals(ApiResource):
@@ -47,7 +49,8 @@ class HistoricalItem(ApiModel):
 class Historicals(ApiResource):
     endpoint_path = "/quotes/historicals"
     attributes = {
-        'previous_close_price': float
+        'previous_close_price': float,
+        'instrument': str
     }
 
     class Item(HistoricalItem):
@@ -99,7 +102,8 @@ class OptionInstrument(ApiResource):
         'expiration_date': datetime,
         'chain_id': str,
         'type': str,
-        'chain_symbol': str
+        'chain_symbol': str,
+        'url': str
     }
 
 class OptionQuote(ApiResource):
@@ -114,6 +118,10 @@ class OptionQuote(ApiResource):
 class OptionHistoricals(ApiResource):
     endpoint_path = "/marketdata/options/historicals"
     authenticated = True
+
+    attributes = {
+        'instrument': str
+    }
 
     class Item(HistoricalItem):
         list_key = 'data_points'

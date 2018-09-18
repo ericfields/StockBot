@@ -4,7 +4,7 @@ from django.shortcuts import render
 from robinhood.api import ApiBadRequestException, ApiForbiddenException
 from robinhood.models import Instrument, OptionInstrument, OptionHistoricals, Fundamentals
 from chart import Chart
-from robinhood.chart_data import StockChartData, OptionChartData
+from robinhood.chart_data import RobinhoodChartData
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.cache import cache_page
@@ -13,6 +13,10 @@ from dateutil import parser as dateparser
 import json
 import re
 from uuid import UUID
+
+DURATION_FORMAT = '^([0-9]+)?\s*(day|week|month|year|all|d|w|m|y|a)s?$'
+SYMBOL_FORMAT = '[A-Za-z0-9\.]{1,14}'
+OPTION_PRICE_FORMAT = '[0-9]+(\.[0-9]+)?)([CcPp]'
 
 # Create your views here.
 def index(request):
@@ -38,8 +42,18 @@ def info_POST(request):
 
 @csrf_exempt
 def graph_GET(request, identifier, span = 'day'):
-    instrument, span = get_graph_info(identifier, span)
-    chart_data = StockChartData(instrument, span)
+    span = __str_to_duration(span)
+
+    identifiers = identifier.split(',')
+
+    instruments = [find_instrument(id) for id in identifiers]
+
+    if len(instruments) == 1:
+        name = __stock_name(instruments[0])
+    else:
+        name = ', '.join([i.symbol for i in instruments])
+
+    chart_data = RobinhoodChartData(name, span, instruments)
     return chart_img(chart_data)
 
 @csrf_exempt
@@ -49,27 +63,35 @@ def graph_POST(request):
         raise BadRequestException("No stock was specified")
 
     parts = body.split()
-    instrument, span = get_graph_info(*parts)
+    if not parts:
+        raise BadRequestException("No arguments provided")
 
-    if len(parts) == 2:
+    symbols = parts[0].split(',')
+
+    if len(parts) > 1:
         span = parts[1]
+        __str_to_duration(span) # raise error if span is invalid
     else:
         span = 'day'
 
-    img_file_name = "{}_{}_{}.png".format(instrument.id, datetime.now().strftime("%H%M"), span)
+    instruments = [find_instrument(symbol) for symbol in symbols]
+    instrument_ids = ','.join(instrument.id for instrument in instruments)
+
+    img_file_name = "{}_{}_{}.png".format(instrument_ids, datetime.now().strftime("%H%M"), span)
 
     image_url = request.build_absolute_uri(
         request.get_full_path() + "/image/" + img_file_name)
 
-    symbol = parts[0].upper()
-    return mattermost_graph(symbol, image_url)
+    return mattermost_graph(','.join(symbols), image_url)
 
 @csrf_exempt
 def option_graph_GET(request, identifier, price_str, expiration, span = 'day'):
-    option_instrument, span = get_option_graph_info(identifier, price_str, expiration, span)
+    instrument = find_option_instrument(identifier, price_str, expiration)
+    span = __str_to_duration(span)
+    name = __option_name(instrument)
 
     try:
-        chart_data = OptionChartData(option_instrument, span)
+        chart_data = RobinhoodChartData(name, span, instrument)
     except ApiForbiddenException:
         raise ForbiddenException("Authentication is required for this endpoint, but credentials are expired or invalid.")
 
@@ -82,73 +104,80 @@ def option_graph_POST(request):
         raise BadRequestException("No stock was specified")
 
     parts = body.split()
-    option_instrument, span = get_option_graph_info(*parts)
+    if len(parts) < 3:
+        raise BadRequestException("Not enough options parameters provided. Must provide: [symbol], [price/type], [expiration date]")
 
-    if len(parts) == 4:
+    symbol = parts[0].upper()
+    price_str = parts[1]
+    expiration = parts[2]
+
+    instrument = find_option_instrument(symbol, price_str, expiration)
+
+    if len(parts) > 3:
         span = parts[3]
     else:
         span = 'day'
 
-    img_file_name = "{}_{}_{}.png".format(option_instrument.id, datetime.now().strftime("%H%M"), span)
+    img_file_name = "{}_{}_{}.png".format(instrument.id, datetime.now().strftime("%H%M"), span)
 
     image_url = request.build_absolute_uri(
         request.get_full_path() + "/image/" + img_file_name)
 
-    symbol = parts[0].upper()
     return mattermost_graph(symbol, image_url)
 
 @csrf_exempt
 @cache_page(60)
 def graph_img(request, img_name):
     parts = img_name.split("_")
-    del parts[1]
-    instrument, span = get_graph_info(*parts)
-    chart_data = StockChartData(instrument, span)
+    if len(parts) < 3:
+        raise BadRequestException("Invalid image: '{}'".format(img_name))
+
+    identifiers = parts[0].split(',')
+    span = parts[-1]
+
+    span = __str_to_duration(span)
+    instruments = [find_instrument(identifier) for identifier in identifiers]
+    if len(identifiers) == 1:
+        name = __stock_name(identifiers[0])
+    else:
+        name = ', '.join(instrument.symbol for instrument in instruments)
+    print(name)
+
+    chart_data = RobinhoodChartData(name, span, instruments)
     return chart_img(chart_data)
 
 @csrf_exempt
 @cache_page(60)
 def option_graph_img(request, img_name):
     parts = img_name.split("_")
-    del parts[1]
-    instrument, span = get_option_graph_info(*parts)
-    chart_data = OptionChartData(instrument, span)
+    if len(parts) < 3:
+        raise BadRequestException("Invalid image: '{}'".format(img_name))
+
+    identifier = parts[0]
+    span = parts[-1]
+
+    span = __str_to_duration(span)
+    instrument = find_option_instrument(identifier)
+    name = __option_name(instrument)
+
+    chart_data = RobinhoodChartData(name, span, instrument)
     return chart_img(chart_data)
-
-def get_graph_info(identifier = None, span = 'day'):
-    if not identifier:
-        raise BadRequestException("No stock identifier specified")
-
-    instrument = find_instrument(identifier)
-
-    actual_span = __str_to_duration(span)
-
-    return instrument, actual_span
-
-def get_option_graph_info(identifier, price_str = None, expiration = None, span = 'day'):
-    if not identifier:
-        raise BadRequestException("No stock/option identifier specified")
-
-    option_instrument = find_option_instrument(identifier, price_str, expiration)
-
-    actual_span = __str_to_duration(span)
-
-    return option_instrument, actual_span
 
 def chart_img(chart_data):
     chart = Chart(chart_data)
     chart_img_data = chart.get_img_data()
-
     return HttpResponse(chart_img_data, content_type="image/png")
 
-def find_option_instrument(identifier, price_str, expiration):
+def find_option_instrument(identifier, price_str = None, expiration = None):
     try:
         option_instrument = OptionInstrument.get(UUID(identifier))
     except ValueError:
         # Not a UUID, search using the option parameters instead
+        if not(price_str and expiration):
+            raise BadRequestException("Must provide price/type and expiration of option")
         instrument = find_instrument(identifier)
 
-        match = re.match('^([0-9]+(\.[0-9]+)?)([CcPp])$', price_str)
+        match = re.match("^({})$".format(OPTION_PRICE_FORMAT), price_str)
         if not match:
             raise BadRequestException("Invalid strike price '{}'".format(price_str))
 
@@ -183,6 +212,9 @@ def find_instrument(identifier):
         instrument = Instrument.get(UUID(identifier))
     except ValueError:
         # Not a UUID, likely a stock symbol. Search for its instrument instead
+        if not re.match(SYMBOL_FORMAT, identifier):
+            raise BadRequestException("Invalid stock symbol: '{}'".format(identifier))
+
         try:
             instruments = Instrument.search(symbol=identifier)
         except ApiBadRequestException:
@@ -216,9 +248,9 @@ def mattermost_text(text):
 
 def __str_to_duration(duration_str):
     duration_str = duration_str.strip().lower()
-    match = re.match('^([0-9]+)?\s*(day|week|month|year|all|d|w|m|y|a)s?$', duration_str)
+    match = re.match(DURATION_FORMAT, duration_str)
     if not match:
-        raise BadRequestException("Invalid span '{}'. Must be time unit and/or number, e.g. '3month'".format(span))
+        raise BadRequestException("Invalid span '{}'. Must be time unit and/or number, e.g. '3month'".format(duration_str))
 
     unit = match.groups()[1][0]
     if unit == 'd':
@@ -238,3 +270,17 @@ def __str_to_duration(duration_str):
         duration *= int(match.groups()[0])
 
     return duration
+
+def __stock_name(instrument):
+    return "{} ({})".format(
+        instrument.simple_name or instrument.name,
+        instrument.symbol
+    )
+
+def __option_name(instrument):
+    type = instrument.type[0].upper()
+    expiration = instrument.expiration_date.strftime("%-x")
+    price = round(instrument.strike_price, 1)
+    symbol = instrument.chain_symbol
+
+    return "{} {}{} {}".format(symbol, price, type, expiration)

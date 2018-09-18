@@ -145,7 +145,7 @@ class Chart():
 
     def __show_title(self):
         if len(self.title) > self.max_title_length:
-            self.title = self.title[0:max_title_length] + '...'
+            self.title = self.title[0:self.max_title_length] + '...'
         title = self.title
 
         self.axis.set_title(title, **self.title_layout)
