@@ -66,7 +66,7 @@ def graph_POST(request):
     if not parts:
         raise BadRequestException("No arguments provided")
 
-    symbols = parts[0].split(',')
+    symbols = parts[0].upper().split(',')
 
     if len(parts) > 1:
         span = parts[1]
