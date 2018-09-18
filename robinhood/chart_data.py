@@ -79,8 +79,7 @@ class RobinhoodChartData(ChartData):
                     continue
 
                 if not initial_price_set:
-                    initial_price += historical.close_price * weight
-                    print(initial_price)
+                    initial_price += historical.open_price * weight
                     initial_price_set = True
 
                 if historical.begins_at not in time_price_map:
