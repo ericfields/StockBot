@@ -1,7 +1,8 @@
 from django.http import HttpResponse, HttpResponseForbidden
 from .exceptions import BadRequestException, ForbiddenException
 from django.shortcuts import render
-from robinhood.api import ApiBadRequestException, ApiForbiddenException
+from robinhood.api import ApiResource, ApiBadRequestException, ApiForbiddenException
+from .exceptions import ConfigurationException
 from robinhood.models import Instrument, OptionInstrument, OptionHistoricals, Fundamentals
 from chart import Chart
 from robinhood.chart_data import RobinhoodChartData
@@ -103,6 +104,8 @@ def option_graph_GET(request, identifier, price_str, expiration, span = 'day'):
 
 @csrf_exempt
 def option_graph_POST(request):
+    if not ApiResource.api_token:
+        raise ConfigurationException("Can't get a graph of options. Options history is authenticated, but no Robinhood credentials are configured for this server.")
     body = request.POST.get('text', None)
     if not body:
         raise BadRequestException("No stock was specified")

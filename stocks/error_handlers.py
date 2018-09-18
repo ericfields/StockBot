@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.utils.deprecation import MiddlewareMixin
-from .exceptions import BadRequestException, ForbiddenException
+from .exceptions import BadRequestException, ForbiddenException, ConfigurationException
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 import json
 
@@ -15,6 +15,8 @@ class HandleExceptionMiddleware(MiddlewareMixin):
         else:
             if isinstance(exception, BadRequestException):
                 status = 400
+            elif isinstance(exception, ConfigurationException):
+                status = 401
             elif isinstance(exception, ForbiddenException):
                 status = 403
             else:
