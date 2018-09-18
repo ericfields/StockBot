@@ -17,4 +17,7 @@ class HandleExceptionMiddleware(MiddlewareMixin):
                 status = 400
             elif isinstance(exception, ForbiddenException):
                 status = 403
+            else:
+                raise(exception)
+
             return HttpResponse(str(exception), status=status)
