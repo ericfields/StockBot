@@ -145,7 +145,6 @@ def graph_img(request, img_name):
         name = __stock_name(instruments[0])
     else:
         name = ', '.join(instrument.symbol for instrument in instruments)
-    print(name)
 
     chart_data = RobinhoodChartData(name, span, instruments)
     return chart_img(chart_data)

@@ -11,11 +11,10 @@ class HandleExceptionMiddleware(MiddlewareMixin):
     def process_exception(self, request, exception):
         if request.method == 'POST':
             # Return a JSON message for Mattermost requests
-            message = json_error_response(str(exception))
+            return json_error_response(str(exception))
         else:
-            message = str(exception)
-
-        if isinstance(exception, BadRequestException):
-            return HttpResponseBadRequest(message)
-        elif isinstance(exception, ForbiddenException):
-            return HttpResponseForbidden(message)
+            if isinstance(exception, BadRequestException):
+                status = 400
+            elif isinstance(exception, ForbiddenException):
+                status = 403
+            return HttpResponse(str(exception), status=status)
