@@ -2,24 +2,26 @@ from django.contrib import messages
 from django.utils.deprecation import MiddlewareMixin
 from .exceptions import BadRequestException, ForbiddenException, ConfigurationException
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from .utilities import mattermost_text
 import json
-
-def json_error_response(text):
-    return HttpResponse(json.dumps({"text": text}), content_type="application/json")
 
 class HandleExceptionMiddleware(MiddlewareMixin):
     def process_exception(self, request, exception):
+        if isinstance(exception, BadRequestException):
+            status = 400
+        elif isinstance(exception, ConfigurationException):
+            status = 401
+        elif isinstance(exception, ForbiddenException):
+            status = 403
+        else:
+            raise(exception)
+
         if request.method == 'POST':
             # Return a JSON message for Mattermost requests
-            return json_error_response(str(exception))
+            return mattermost_text(str(exception))
         else:
-            if isinstance(exception, BadRequestException):
-                status = 400
-            elif isinstance(exception, ConfigurationException):
-                status = 401
-            elif isinstance(exception, ForbiddenException):
-                status = 403
-            else:
-                raise(exception)
-
             return HttpResponse(str(exception), status=status)
+
+class DisableCSRF(MiddlewareMixin):
+    def process_request(self, request):
+        setattr(request, '_dont_enforce_csrf_checks', True)

@@ -146,8 +146,9 @@ class Chart():
     def __show_title(self):
         if len(self.title) > self.max_title_length:
             self.title = self.title[0:self.max_title_length] + '...'
-        title = self.title
 
+        # Dollar signs do weird things in the title text view, escape them
+        title = self.title.replace('$', "\$")
         self.axis.set_title(title, **self.title_layout)
 
     def __show_price_info(self):
