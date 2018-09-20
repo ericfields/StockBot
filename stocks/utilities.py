@@ -2,6 +2,7 @@ import re
 from .exceptions import BadRequestException, ForbiddenException
 from robinhood.chart_data import RobinhoodChartData
 from django.http import HttpResponse
+from django.urls import reverse
 from datetime import datetime, timedelta
 from chart import Chart
 import json
@@ -45,10 +46,11 @@ def mattermost_text(text):
 def mattermost_chart(request, chart_name, span, entities):
     entity_ids = ','.join(entity.id for entity in entities)
 
-    img_file_name = "{}_{}_{}.png".format(entity_ids, datetime.now().strftime("%H%M"), span)
+    timestamp = datetime.now().strftime("%H%M%S")
+    img_file_name = "{}_{}_{}".format(entity_ids, timestamp, span)
 
-    image_url = request.build_absolute_uri(
-        request.get_full_path() + "/image/" + img_file_name)
+    image_url = request.build_absolute_uri(reverse('quote_img', args=[img_file_name]))
+    refresh_image_url = request.build_absolute_uri(reverse('quote_refresh', args=[img_file_name]))
 
     response = {
         "response_type": "in_channel",
@@ -56,9 +58,17 @@ def mattermost_chart(request, chart_name, span, entities):
             {
                 "fallback": "{} Chart".format(chart_name),
                 "text": chart_name,
-                "image_url": image_url
+                "image_url": image_url,
+                "actions": [
+                    {
+                        "name": "Refresh",
+                        "integration": {
+                            "url": refresh_image_url
+                        }
+                    }
+                ]
             }
         ]
     }
 
-    return HttpResponse(json.dumps(response), content_type="application/json")
+    return response

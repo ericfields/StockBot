@@ -3,6 +3,7 @@ from .option_quote_handler import OptionQuoteHandler
 from uuid import UUID
 from .utilities import *
 from django.views.decorators.cache import cache_page
+import json
 import re
 
 QUOTE_HANDLERS = [StockQuoteHandler, OptionQuoteHandler]
@@ -26,8 +27,10 @@ def get_mattermost_graph(request):
     body = request.POST.get('text', None)
     if not body:
         raise BadRequestException("No stocks/options specified")
+    chart_response = get_mattermost_graph_response(request, body.split())
+    return HttpResponse(json.dumps(chart_response), content_type="application/json")
 
-    parts = body.split()
+def get_mattermost_graph_response(request, parts):
     identifiers = parts[0].upper().split(',')
     # Remove duplicates by converting to set (and back)
     identifiers = list(set(identifiers))
@@ -45,6 +48,21 @@ def get_mattermost_graph(request):
         chart_name = ', '.join([i.short_name() for i in instruments])
 
     return mattermost_chart(request, chart_name, span, instruments)
+
+def refresh_mattermost_graph(request, img_name):
+    parts = img_name.split('_')
+    # remove timestamp
+    del parts[1]
+    chart_response = get_mattermost_graph_response(request, parts)
+
+    chart_response = {
+        "update": {
+            "props": {
+                "attachments": chart_response['attachments']
+            }
+        }
+    }
+    return HttpResponse(json.dumps(chart_response), content_type="application/json")
 
 @cache_page(60 * 15)
 def get_graph_img(request, img_name):
