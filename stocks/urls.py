@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('portfolios/', views.portfolios),
     path('graph/<identifier>/', views.stock_graph_GET),
     path('graph/<identifier>/<span>/', views.stock_graph_GET),
     path('graph', views.stock_graph_POST),
