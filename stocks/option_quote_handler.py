@@ -3,6 +3,7 @@ from robinhood.api import ApiResource
 from robinhood.models import OptionInstrument
 from .exceptions import BadRequestException
 from .stock_quote_handler import StockQuoteHandler
+from dateutil import parser as dateparser
 import re
 
 class OptionQuoteHandler(QuoteHandler):
