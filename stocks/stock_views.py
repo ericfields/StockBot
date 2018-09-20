@@ -75,7 +75,7 @@ def stock_graph_img(request, img_name):
 
     return chart_img(name, span, instruments)
 
-SYMBOL_FORMAT = '[A-Za-z0-9\.]{1,14}'
+SYMBOL_FORMAT = '^[A-Z\.]{1,14}$'
 
 def find_stock_instrument(identifier):
     instrument = None
@@ -83,6 +83,7 @@ def find_stock_instrument(identifier):
         instrument = Instrument.get(UUID(identifier))
     except ValueError:
         # Not a UUID, likely a stock symbol. Search for its instrument instead
+        identifier = identifier.upper()
         if not re.match(SYMBOL_FORMAT, identifier):
             raise BadRequestException("Invalid stock symbol: '{}'".format(identifier))
 
@@ -104,3 +105,6 @@ def chart_name_for_stock(instrument):
         instrument.simple_name or instrument.name,
         instrument.symbol
     )
+
+def stock_identifier(instrument):
+    return instrument.symbol

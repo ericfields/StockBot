@@ -143,6 +143,17 @@ def parse_date(date_str):
     except ValueError:
         raise BadRequestException("Invalid date: '{}'".format(date_str))
 
+def option_identifier(instrument):
+    type = instrument.type[0].upper()
+    expiration = instrument.expiration_date.strftime("%D")
+    price = instrument.strike_price
+    if price % 1 > 0:
+        price = round(price, 1)
+    else:
+        price = round(price)
+    symbol = instrument.chain_symbol
+    return "{}{}{}@{}".format(symbol, price, type, expiration)
+
 def option_simple_name(instrument):
     type = instrument.type[0].upper()
     expiration = instrument.expiration_date.strftime("%-m/%-d")

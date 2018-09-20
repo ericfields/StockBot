@@ -1,6 +1,6 @@
 from .models import User, Portfolio, Security
-from .stock_views import SYMBOL_FORMAT, find_stock_instrument
-from .option_views import OPTION_FORMAT, find_option_instrument
+from .stock_views import SYMBOL_FORMAT, find_stock_instrument, stock_identifier
+from .option_views import OPTION_FORMAT, find_option_instrument, option_identifier
 from .utilities import mattermost_text
 from .exceptions import BadRequestException
 import re
@@ -103,7 +103,7 @@ def create_portfolio(request):
 def securities_to_str(securities):
     security_strs = []
     for s in securities:
-        security_str = s.name + ' ' + ': '
+        security_str = s.name + ': '
         if s.count % 1 == 0:
             security_str += str(round(s.count))
         else:
@@ -115,13 +115,15 @@ def create_security(security_name, portfolio):
     if re.match(SYMBOL_FORMAT, security_name):
         instrument = find_stock_instrument(security_name)
         type = Security.STOCK
+        name = stock_identifier(instrument)
     elif re.match(OPTION_FORMAT, security_name):
         instrument = find_option_instrument(security_name)
         type = Security.OPTION
+        name = option_identifier(instrument)
     else:
-        raise BadRequestException("'{}' does not match any known stock format (e.g. AMZN) or option format (e.g. MU90C@12-21)")
+        raise BadRequestException("'{}' does not match any known stock format (e.g. AMZN) or option format (e.g. MU90C@12-21)".format(security_name))
 
-    return Security(name=security_name, portfolio=portfolio, type=type, instrument_id=instrument.id)
+    return Security(name=name, portfolio=portfolio, type=type, instrument_id=instrument.id)
 
 def get_or_create_user(user_id, user_name = None):
     if not user_id:
