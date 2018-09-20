@@ -14,7 +14,11 @@ def get_graph(request, identifiers, span = 'day'):
     # Remove duplicates by converting to set (and back)
     identifiers = list(set(identifiers))
 
-    instruments, chart_name = find_instruments(identifiers)
+    instruments = find_instruments(identifiers)
+    if len(instruments) == 1:
+        chart_name = instruments[0].full_name()
+    else:
+        chart_name = ', '.join([i.short_name() for i in instruments])
 
     return chart_img(chart_name, span, instruments)
 
@@ -34,7 +38,11 @@ def get_mattermost_graph(request):
     else:
         span = 'day'
 
-    instruments, chart_name = find_instruments(identifiers)
+    instruments = find_instruments(identifiers)
+    if len(instruments) == 1:
+        chart_name = instruments[0].full_name()
+    else:
+        chart_name = ', '.join([i.short_name() for i in instruments])
 
     return mattermost_chart(request, chart_name, span, instruments)
 
@@ -47,31 +55,29 @@ def get_graph_img(request, img_name):
     identifiers = parts[0].split(',')
     span = str_to_duration(parts[-1])
 
-    instruments, chart_name = find_instruments(identifiers)
+    instruments = find_instruments(identifiers)
+    if len(instruments) == 1:
+        chart_name = instruments[0].full_name()
+    else:
+        chart_name = ', '.join([i.short_name() for i in instruments])
 
     return chart_img(chart_name, span, instruments)
 
 def find_instruments(identifiers):
     instruments = []
-    names = []
     for identifier in identifiers:
         instrument = None
         for handler in QUOTE_HANDLERS:
             try:
                 instrument = handler.get_instrument(UUID(identifier))
+                if instrument:
+                    break
             except ValueError:
                 # Identifier is not a UUID. Search by its identifier string instead
                 pass
 
-            if not instrument:
-                if re.match(handler.FORMAT, identifier.upper()):
-                    instrument = handler.search_for_instrument(identifier.upper())
-
-            if instrument:
-                if len(identifiers) > 1:
-                    names.append(handler.instrument_simple_name(instrument))
-                else:
-                    names.append(handler.instrument_full_name(instrument))
+            if re.match(handler.FORMAT, identifier.upper()):
+                instrument = handler.search_for_instrument(identifier.upper())
                 break
 
         if not instrument:
@@ -79,10 +85,9 @@ def find_instruments(identifiers):
             raise BadRequestException("Invalid identifier '{}'. Valid formats:\n\t{}".format(
                 identifier, valid_format_example_str())
             )
-
         instruments.append(instrument)
 
-    return instruments, ', '.join(names)
+    return instruments
 
 def valid_format_example_str():
     return "\n\t".join(["{}: {}".format(h.TYPE, h.EXAMPLE) for h in QUOTE_HANDLERS])

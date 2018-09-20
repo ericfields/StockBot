@@ -24,24 +24,6 @@ class QuoteHandler():
 
     def search_for_instrument(instrument):
         """Should return an instrument given a string representing its unique identifier,
-        such as would be returned by `instrument_identifier(instrument)`
-        """
-        raise Exception("Not implemented")
-
-    def instrument_full_name(instrument):
-        """Should return a full name for the instrument for use as its chart title
-        """
-        raise Exception("Not implemented")
-
-    def instrument_simple_name(instrument):
-        """Should return a short name for the instrument used when quoting multiple
-        instruments at once
-        """
-        raise Exception("Not implemented")
-
-    def instrument_identifier(instrument):
-        """Should return a string representing a unique identifier which matches
-        the `FORMAT` regular expression, and which can be used to search for
-        the instrument uniquely.
+        such as would be returned by `Instrument.identifier`
         """
         raise Exception("Not implemented")

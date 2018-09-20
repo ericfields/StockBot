@@ -31,6 +31,21 @@ class Instrument(ApiResource):
         'url': str
     }
 
+    def full_name(self):
+        return "{} ({})".format(
+            self.simple_name or self.name,
+            self.symbol
+        )
+
+    def short_name(self):
+        return self.symbol
+
+    def identifier(self):
+        return self.symbol
+
+    def __str__(self):
+        return self.simple_name()
+
 class Fundamentals(ApiResource):
     endpoint_path = "/fundamentals"
     cached = True
@@ -105,6 +120,40 @@ class OptionInstrument(ApiResource):
         'chain_symbol': str,
         'url': str
     }
+
+    def full_name(self):
+        symbol = self.chain_symbol
+        price = self.strike_price
+        if price % 1 > 0:
+            price = round(price, 1)
+        else:
+            price = round(price)
+        type = self.type.capitalize()
+        expiration = self.expiration_date.strftime("%D")
+
+        return "{} ${} {} exp. {}".format(symbol, price, type, expiration)
+
+    def short_name(self):
+        type = self.type[0].upper()
+        expiration = self.expiration_date.strftime("%-m/%-d")
+        price = self.strike_price
+        if price % 1 > 0:
+            price = round(price, 1)
+        else:
+            price = round(price)
+        symbol = self.chain_symbol
+
+        return "{} ${}{} {}".format(symbol, price, type, expiration)
+
+    def identifier(self):
+        type = self.type[0].upper()
+        expiration = self.expiration_date.strftime("%D")
+        price = round(self.strike_price, 1)
+        symbol = self.chain_symbol
+        return "{}{}{}@{}".format(symbol, price, type, expiration)
+
+    def __str__(self):
+        return self.simple_name()
 
 class OptionQuote(ApiResource):
     endpoint_path = "/marketdata/options"

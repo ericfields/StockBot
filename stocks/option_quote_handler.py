@@ -50,37 +50,6 @@ class OptionQuoteHandler(QuoteHandler):
 
         return instrument
 
-    def instrument_full_name(instrument):
-        symbol = instrument.chain_symbol
-        price = instrument.strike_price
-        if price % 1 > 0:
-            price = round(price, 1)
-        else:
-            price = round(price)
-        type = instrument.type.capitalize()
-        expiration = instrument.expiration_date.strftime("%D")
-
-        return "{} ${} {} exp. {}".format(symbol, price, type, expiration)
-
-    def instrument_simple_name(instrument):
-        type = instrument.type[0].upper()
-        expiration = instrument.expiration_date.strftime("%-m/%-d")
-        price = instrument.strike_price
-        if price % 1 > 0:
-            price = round(price, 1)
-        else:
-            price = round(price)
-        symbol = instrument.chain_symbol
-
-        return "{} ${}{} {}".format(symbol, price, type, expiration)
-
-    def instrument_identifier(instrument):
-        type = instrument.type[0].upper()
-        expiration = instrument.expiration_date.strftime("%D")
-        price = round(instrument.strike_price, 1)
-        symbol = instrument.chain_symbol
-        return "{}{}{}@{}".format(symbol, price, type, expiration)
-
     def parse_option(option_str):
         match = re.match(OptionQuoteHandler.FORMAT, option_str)
 

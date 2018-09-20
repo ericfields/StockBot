@@ -21,15 +21,3 @@ class StockQuoteHandler(QuoteHandler):
             return instruments[0]
         else:
             raise BadRequestException("Stock not found: '{}'".format(identifier))
-
-    def instrument_full_name(instrument):
-        return "{} ({})".format(
-            instrument.simple_name or instrument.name,
-            instrument.symbol
-        )
-
-    def instrument_simple_name(instrument):
-        return instrument.symbol
-
-    def instrument_identifier(instrument):
-        return instrument.symbol
