@@ -1,9 +1,11 @@
 from .models import User, Portfolio, Security
-from .stock_views import SYMBOL_FORMAT, find_stock_instrument, stock_identifier
-from .option_views import OPTION_FORMAT, find_option_instrument, option_identifier
+from .stock_quote_handler import StockQuoteHandler
+from .option_quote_handler import OptionQuoteHandler
 from .utilities import mattermost_text
 from .exceptions import BadRequestException
 import re
+
+QUOTE_HANDLERS = [StockQuoteHandler, OptionQuoteHandler]
 
 def portfolios(request):
     if request.method == 'POST':
@@ -64,26 +66,26 @@ def create_portfolio(request):
     new_securities = []
 
     for security_definition in security_definitions:
-        invalid_security_str = "Invalid security definition: '{}'. Format must be [security_name]=[count]".format(security_definition)
+        invalid_security_str = "Invalid security definition: '{}'. Format must be [identifier]=[count]".format(security_definition)
         parts = re.split('[=:]', security_definition)
         if len(parts) != 2:
             raise BadRequestException(invalid_security_str)
 
-        security_name = parts[0].upper()
+        identifier = parts[0].upper()
         try:
             count = float(parts[1])
         except ValueError:
             raise BadRequestException(invalid_security_str)
 
         if count <= 0:
-            raise BadRequestException("Invalid security count for {}: '{}'".format(security_name, count))
+            raise BadRequestException("Invalid security count for {}: '{}'".format(identifier, count))
 
         # Find a matching security if one exists
-        if security_name in existing_securities:
-            security = existing_securities[security_name]
-            del existing_securities[security_name]
+        if identifier in existing_securities:
+            security = existing_securities[identifier]
+            del existing_securities[identifier]
         else:
-            security = create_security(security_name, portfolio)
+            security = create_security(identifier, portfolio)
 
         security.count = count
         new_securities.append(security)
@@ -111,19 +113,20 @@ def securities_to_str(securities):
         security_strs.append(security_str)
     return "\n".join(security_strs)
 
-def create_security(security_name, portfolio):
-    if re.match(SYMBOL_FORMAT, security_name):
-        instrument = find_stock_instrument(security_name)
-        type = Security.STOCK
-        name = stock_identifier(instrument)
-    elif re.match(OPTION_FORMAT, security_name):
-        instrument = find_option_instrument(security_name)
-        type = Security.OPTION
-        name = option_identifier(instrument)
-    else:
-        raise BadRequestException("'{}' does not match any known stock format (e.g. AMZN) or option format (e.g. MU90C@12-21)".format(security_name))
+def create_security(identifier, portfolio):
+    instrument = None
+    for handler in QUOTE_HANDLERS:
+        if re.match(handler.FORMAT, identifier):
+            instrument = handler.search_for_instrument(identifier)
+            type = Security.STOCK
+        elif re.match(OPTION_FORMAT, identifier):
+            instrument = find_option_instrument(identifier)
+            type = Security.OPTION
 
-    return Security(name=name, portfolio=portfolio, type=type, instrument_id=instrument.id)
+    if not instrument:
+        raise BadRequestException("'{}' does not match any known stock format (e.g. AMZN) or option format (e.g. MU90C@12-21)".format(identifier))
+
+    return Security(name=instrument.identifier(), portfolio=portfolio, type=type, instrument_id=instrument.id)
 
 def get_or_create_user(user_id, user_name = None):
     if not user_id:
