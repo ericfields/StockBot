@@ -59,7 +59,8 @@ class RobinhoodChartData(ChartData):
             option_quotes = OptionQuote.search(instruments=option_instrument_urls)
             for option_quote in option_quotes:
                 weight = instrument_weights[option_quote.instrument]
-                current_price += option_quote.adjusted_mark_price * weight
+                # Multiply by 100 to get the value of a single contract
+                current_price += option_quote.adjusted_mark_price * weight * 100
             historical_params['instruments'] = option_instrument_urls
             historicals_list += OptionHistoricals.search(**historical_params)
 
@@ -72,6 +73,9 @@ class RobinhoodChartData(ChartData):
             if type(historicals) is Historicals and historicals.previous_close_price:
                 initial_price += historicals.previous_close_price * weight
                 initial_price_set = True
+            elif type(historicals) is OptionHistoricals:
+                # Multiply by 100 to get the value of a single contract
+                weight *= 100
 
             for historical in historicals.items:
                 # Exclude data before our requested start date

@@ -173,9 +173,9 @@ class ApiResource(ApiModel):
 
             if response.status_code != 200:
                 if response.status_code == 429:
-                    raise ApiThrottledException(response.text)
-                if response.status_code == 403:
-                    error = ApiForbiddenException(response.text)
+                    error = ApiThrottledException(response.text)
+                elif response.status_code == 403:
+                    error = ApiForbiddenException("Authentication is required for this endpoint, but credentials are expired or invalid.")
                 else:
                     error = ApiCallException(response.status_code, response.text)
                 ApiResource.auth_failure = error
