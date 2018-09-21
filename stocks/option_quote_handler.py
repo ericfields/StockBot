@@ -9,7 +9,7 @@ import re
 class OptionQuoteHandler(QuoteHandler):
 
     TYPE = 'option'
-    FORMAT = '^([A-Z\.]+)([0-9]+(\.50?)?)([CP])@?([0-9\/\-]+)?$'
+    FORMAT = '^([A-Z\.]+)([0-9]+(\.[05]0?)?)([CP])@?([0-9\/\-]+)?$'
     EXAMPLE = "AAPL250.5C@12-21"
 
     def get_instrument(instrument_uuid):
