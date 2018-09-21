@@ -8,9 +8,9 @@ import json
 
 DURATION_FORMAT = '^([0-9]+)?\s*(day|week|month|year|all|d|w|m|y|a)s?$'
 
-def chart_img(name, span, instruments):
+def chart_img(name, span, instruments, hide_value = False):
     chart_data = RobinhoodChartData(name, span, instruments)
-    chart = Chart(chart_data)
+    chart = Chart(chart_data, hide_value)
     chart_img_data = chart.get_img_data()
     return HttpResponse(chart_img_data, content_type="image/png")
 

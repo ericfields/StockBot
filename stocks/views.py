@@ -4,6 +4,7 @@ from uuid import UUID
 from .utilities import *
 from django.views.decorators.cache import cache_page
 from django.urls import reverse
+from .models import Portfolio
 from datetime import datetime
 import json
 import re
@@ -13,11 +14,11 @@ QUOTE_HANDLERS = [StockQuoteHandler, OptionQuoteHandler]
 def get_chart(request, identifiers, span = 'day'):
     span = str_to_duration(span)
 
-    identifiers = identifiers.split(',')
     # Remove duplicates by converting to set (and back)
-    identifiers = list(set(identifiers))
+    identifiers = list(set(identifiers.split(',')))
+    print(identifiers)
 
-    instruments = find_instruments(identifiers)
+    instruments = [find_instrument(i) for i in identifiers]
     if len(instruments) == 1:
         chart_name = instruments[0].full_name()
     else:
@@ -64,13 +65,29 @@ def mattermost_chart(request, identifiers, span):
     # Raise error if span is invalid
     str_to_duration(span)
 
-    instruments = find_instruments(identifiers)
-    if len(instruments) == 1:
-        chart_name = instruments[0].full_name()
-    else:
-        chart_name = ', '.join([i.short_name() for i in instruments])
+    portfolio = None
 
-    ids = [i.id for i in instruments]
+    # Check if this is a request for a portfolio
+    if len(identifiers) == 1:
+        portfolio = find_portfolio(identifiers[0])
+        if portfolio:
+            if len(portfolio.security_set.all()) > 0:
+                # Provide the portfolio symbol as the
+                symbol = identifiers[0]
+                ids = [symbol]
+                chart_name = symbol
+            else:
+                # Empty portfolio, do not chart
+                raise BadRequestException("This portfolio is empty")
+
+    if not portfolio:
+        instruments = [find_instrument(i) for i in identifiers]
+        if len(instruments) == 1:
+            chart_name = instruments[0].full_name()
+        else:
+            chart_name = ', '.join([i.short_name() for i in instruments])
+
+        ids = [i.id for i in instruments]
 
     # Add a timestamp to the image name to avoid caching future charts
     timestamp = datetime.now().strftime("%H%M%S")
@@ -101,18 +118,6 @@ def mattermost_chart(request, identifiers, span):
     }
     return response
 
-def mattermost_action(url, name, **params):
-    return {
-        "name": name.capitalize(),
-        "integration": {
-            "url": url,
-            "context": {
-                "action": name.lower(),
-                "params": params
-            }
-        }
-    }
-
 @cache_page(60 * 15)
 def get_chart_img(request, img_name):
     parts = img_name.split("_")
@@ -122,39 +127,60 @@ def get_chart_img(request, img_name):
     identifiers = parts[0].split(',')
     span = str_to_duration(parts[-1])
 
-    instruments = find_instruments(identifiers)
-    if len(instruments) == 1:
-        chart_name = instruments[0].full_name()
+    portfolio = None
+    hide_value = False
+
+    if len(identifiers) == 1:
+        portfolio = find_portfolio(identifiers[0])
+
+    if portfolio:
+        instruments = {}
+        for security in portfolio.security_set.all():
+            instrument = find_instrument(str(security.instrument_id))
+            instruments[instrument] = security.count
+        # Use portfolio name as title
+        chart_name = portfolio.symbol
+        hide_value = True
     else:
-        chart_name = ', '.join([i.short_name() for i in instruments])
+        instruments = [find_instrument(i) for i in identifiers]
+        if len(instruments) == 1:
+            chart_name = instruments[0].full_name()
+        else:
+            chart_name = ', '.join([i.short_name() for i in instruments])
 
-    return chart_img(chart_name, span, instruments)
+    return chart_img(chart_name, span, instruments, hide_value)
 
-def find_instruments(identifiers):
-    instruments = []
-    for identifier in identifiers:
-        instrument = None
-        for handler in QUOTE_HANDLERS:
-            try:
-                instrument = handler.get_instrument(UUID(identifier))
-                if instrument:
-                    break
-            except ValueError:
-                # Identifier is not a UUID. Search by its identifier string instead
-                pass
-
-            if re.match(handler.FORMAT, identifier.upper()):
-                instrument = handler.search_for_instrument(identifier.upper())
+def find_instrument(identifier):
+    instrument = None
+    for handler in QUOTE_HANDLERS:
+        try:
+            instrument = handler.get_instrument(UUID(identifier))
+            if instrument:
                 break
+        except ValueError:
+            # Identifier is not a UUID. Search by its identifier string instead
+            pass
 
-        if not instrument:
-            # No valid handlers for this identifier format
-            raise BadRequestException("Invalid identifier '{}'. Valid formats:\n\t{}".format(
-                identifier, valid_format_example_str())
-            )
-        instruments.append(instrument)
+        if re.match(handler.FORMAT, identifier.upper()):
+            instrument = handler.search_for_instrument(identifier.upper())
+            break
 
-    return instruments
+    if not instrument:
+        # No valid handlers for this identifier format
+        raise BadRequestException("Invalid identifier '{}'. Valid formats:\n\t{}".format(
+            identifier, valid_format_example_str())
+        )
+
+    return instrument
+
+def find_portfolio(symbol):
+    if not re.match('^[A-Z]{1,14}$', symbol):
+        return None
+
+    try:
+        return Portfolio.objects.get(symbol=symbol)
+    except Portfolio.DoesNotExist:
+        return None
 
 def valid_format_example_str():
     return "\n\t".join(["{}: {}".format(h.TYPE, h.EXAMPLE) for h in QUOTE_HANDLERS])
@@ -168,3 +194,15 @@ def stock_info(request):
     fundamentals = Fundamentals.get(symbol)
     response = fundamentals.description if fundamentals else 'Stock was not found'
     return mattermost_text(response)
+
+def mattermost_action(url, name, **params):
+    return {
+        "name": name.capitalize(),
+        "integration": {
+            "url": url,
+            "context": {
+                "action": name.lower(),
+                "params": params
+            }
+        }
+    }

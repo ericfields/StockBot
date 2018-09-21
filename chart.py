@@ -52,7 +52,7 @@ class Chart():
     # Additional spacing at top to accommodate title, price, etc.
     top_spacing = 0.8
 
-    def __init__(self, chart_data):
+    def __init__(self, chart_data, hide_value = False):
         self.market_timezone = chart_data.get_market_timezone()
         self.market_hours = chart_data.market_hours
 
@@ -118,7 +118,7 @@ class Chart():
         self.axis.margins(self.margins)
         self.axis.grid(self.show_grid, **self.grid_style)
 
-        self.__show_price_info()
+        self.__show_price_info(hide_value)
 
         self.__show_chart_info()
 
@@ -151,17 +151,18 @@ class Chart():
         title = self.title.replace('$', "\$")
         self.axis.set_title(title, **self.title_layout)
 
-    def __show_price_info(self):
+    def __show_price_info(self, hide_value = False):
         # Show the graph as green if the stock's up, or red if it's down
         market_color = self.__get_market_color()
 
-        if self.current_price < 0.1:
-            self.current_price_str = '${:,.4f}'.format(self.current_price)
-        else:
-            self.current_price_str = '${:,.2f}'.format(self.current_price)
-        self.axis.text(self.current_price_xpos, self.price_info_height, self.current_price_str,
-            transform=plt.gcf().transFigure,
-            fontsize=self.current_price_fontsize)
+        if not hide_value:
+            if self.current_price < 0.1:
+                self.current_price_str = '${:,.4f}'.format(self.current_price)
+            else:
+                self.current_price_str = '${:,.2f}'.format(self.current_price)
+            self.axis.text(self.current_price_xpos, self.price_info_height, self.current_price_str,
+                transform=plt.gcf().transFigure,
+                fontsize=self.current_price_fontsize)
 
         # Show the latest price/change on the graph
         price_change = self.current_price - self.initial_price
@@ -175,7 +176,11 @@ class Chart():
             point_change = round(abs(price_change), 4)
         else:
             point_change = round(abs(price_change), 2)
-        price_change_str = "{}{} ({}%)".format(change_sign, point_change, percentage_change)
+
+        price_change_str = ""
+        if not hide_value:
+            price_change_str += "{}{} ".format(change_sign, point_change)
+        price_change_str += "({}%)".format(percentage_change)
         self.axis.text(self.price_change_xpos, self.price_info_height, price_change_str,
             transform=plt.gcf().transFigure,
             color = market_color,
