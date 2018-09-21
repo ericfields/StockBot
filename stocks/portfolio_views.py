@@ -8,6 +8,12 @@ import re
 
 QUOTE_HANDLERS = [StockQuoteHandler, OptionQuoteHandler]
 
+def portfolios(request):
+    if request.POST.get('text', None):
+        return create_portfolio(request)
+    else:
+        return get_portfolio(request)
+
 def get_portfolio(request):
     user = get_or_create_user(request)
 
