@@ -15,6 +15,10 @@ class QuoteHandler():
     when searching for a quote. Should match the `FORMAT` provided
     """
 
+    AUTHENTICATED = None
+    """bool: Whether or not an authenticated Robinhood account is required to
+    quote this type of entity"""
+
     def get_instrument(instrument_uuid):
         """Should return an instrument given its UUID id value
         Should raise a BadRequestException if the instrument was not found

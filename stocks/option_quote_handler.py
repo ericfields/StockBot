@@ -1,7 +1,7 @@
 from .quote_handler import QuoteHandler
 from robinhood.api import ApiResource
 from robinhood.models import OptionInstrument
-from .exceptions import BadRequestException
+from .exceptions import BadRequestException, ConfigurationException
 from .stock_quote_handler import StockQuoteHandler
 from dateutil import parser as dateparser
 import re
@@ -13,9 +13,11 @@ class OptionQuoteHandler(QuoteHandler):
     EXAMPLE = "AAPL250.5C@12-21"
 
     def get_instrument(instrument_uuid):
+        OptionQuoteHandler.check_authentication()
         return OptionInstrument.get(instrument_uuid)
 
     def search_for_instrument(identifier):
+        OptionQuoteHandler.check_authentication()
         symbol, price, type, expiration = OptionQuoteHandler.parse_option(identifier)
 
         stock_instrument = StockQuoteHandler.search_for_instrument(symbol)
@@ -49,6 +51,10 @@ class OptionQuoteHandler(QuoteHandler):
             raise BadRequestException(message)
 
         return instrument
+
+    def check_authentication():
+        if not (ApiResource.username and ApiResource.password):
+            raise ConfigurationException("This command requires an authenticated backend API call, but credentials are not configured for this server.")
 
     def parse_option(option_str):
         match = re.match(OptionQuoteHandler.FORMAT, option_str)

@@ -11,7 +11,7 @@ First ensure that you have Python3 and pip installed.
 Once installed, you can install this package's dependencies with pip as follows:
 
 ```
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 Next, run the following to execute the database migrations (you should only need to do this once):

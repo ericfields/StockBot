@@ -2,8 +2,7 @@ import re
 from .exceptions import BadRequestException, ForbiddenException
 from robinhood.chart_data import RobinhoodChartData
 from django.http import HttpResponse
-from django.urls import reverse
-from datetime import datetime, timedelta
+from datetime import timedelta
 from chart import Chart
 import json
 
@@ -42,33 +41,3 @@ def str_to_duration(duration_str):
 
 def mattermost_text(text):
     return HttpResponse(json.dumps({"text": text}), content_type="application/json")
-
-def mattermost_chart(request, chart_name, span, entities):
-    entity_ids = ','.join(entity.id for entity in entities)
-
-    timestamp = datetime.now().strftime("%H%M%S")
-    img_file_name = "{}_{}_{}".format(entity_ids, timestamp, span)
-
-    image_url = request.build_absolute_uri(reverse('quote_img', args=[img_file_name]))
-    refresh_image_url = request.build_absolute_uri(reverse('quote_refresh', args=[img_file_name]))
-
-    response = {
-        "response_type": "in_channel",
-        "attachments": [
-            {
-                "fallback": "{} Chart".format(chart_name),
-                "text": chart_name,
-                "image_url": image_url,
-                "actions": [
-                    {
-                        "name": "Refresh",
-                        "integration": {
-                            "url": refresh_image_url
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-
-    return response
