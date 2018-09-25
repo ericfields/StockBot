@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 import json
+from robinhood.models import Stock, Option
 
 class User(models.Model):
     id = models.CharField(primary_key=True, max_length=64)
@@ -12,6 +13,7 @@ class User(models.Model):
 class Portfolio(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     symbol = models.CharField(max_length=14, unique=True)
+    cash = models.FloatField(default=0, validators=[MinValueValidator(0)])
 
     def __str__(self):
         return self.symbol
@@ -30,6 +32,17 @@ class Security(models.Model):
     )
 
     type = models.CharField(max_length=6, choices=TYPES)
+
+    def current_value(self):
+        return self.instrument().current_value() * self.count
+
+    def instrument(self):
+        if self.type == self.__class__.STOCK:
+            return Stock.get(self.instrument_id)
+        elif self.type == self.__class__.OPTION:
+            return Option.get(self.instrument_id)
+        else:
+            raise Exception("Cannot retrieve instrument object: No type specified for this instrument")
 
     def __str__(self):
         return "{}:{}={}".format(self.portfolio.symbol, self.identifier, self.count)

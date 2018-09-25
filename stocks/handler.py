@@ -1,6 +1,6 @@
 """Abstract class representing an interface for retrieving stock quote information
 given various identifiers"""
-class QuoteHandler():
+class Handler():
 
     TYPE = None
     """str: Simple string indicating what type of security this quote handler

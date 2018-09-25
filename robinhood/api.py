@@ -24,12 +24,12 @@ class ApiModel():
     auth_failure = None
 
     def __init__(self, **data):
-        self._assign_attributes(data)
+        self.__assign_attributes(data)
 
-    def _assign_attributes(self, data):
+    def __assign_attributes(self, data):
         for attr in self.attributes:
             if attr in data:
-                val = self._typed_attribute(attr, data[attr])
+                val = self.__typed_attribute(attr, data[attr])
                 setattr(self, attr, val)
             elif attr not in locals():
                 # Initialize all missing attributes as None
@@ -44,7 +44,7 @@ class ApiModel():
             # Not a listable item class
             pass
 
-    def _typed_attribute(self, attr, val):
+    def __typed_attribute(self, attr, val):
         if val == None:
             return val
         type = self.attributes[attr]
@@ -63,6 +63,33 @@ class ApiModel():
             return val in [True, 'true', 'True', 't', 1]
         else:
             return type(val)
+
+    @staticmethod
+    def historical_params(start_date, span):
+        now = datetime.now()
+
+        # If the security was listed after our requested span begins,
+        # we reduce the span to when the security was listed
+        if now - span < start_date:
+            span = now - start_date
+
+        bounds = None
+
+        # Robinhood only has a few options for requesting a span of historical
+        # Determine the minimum span of data we can request from Robinhood
+        if span <= timedelta(days=1):
+            request_span = 'day'
+            # Need to set request bounds to all trading hours as well
+            bounds = 'trading'
+        elif span <= timedelta(days=7):
+            request_span = 'week'
+        elif span <= timedelta(days=365):
+            request_span = 'year'
+        elif span <= timedelta(days=365*5):
+            request_span = '5year'
+        else:
+            # Do not set the request span. Equivalent to 'all'
+            request_span = None
 
 class ApiCallException(Exception):
     code = None

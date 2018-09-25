@@ -59,6 +59,7 @@ class Chart():
         self.series = chart_data.series
         self.initial_price = chart_data.initial_price
         self.current_price = chart_data.current_price
+        self.baseline_price = chart_data.baseline_price
         self.updated_at = chart_data.updated_at
 
         self.title = chart_data.security_name
@@ -120,6 +121,15 @@ class Chart():
 
         self.__show_price_info(hide_value)
 
+        if hide_value:
+            # Hide actual value by showing percentages instead of actual price
+            yticks = self.axis.get_yticks()
+            percent_yticks = []
+            for y in yticks:
+                p = '{}%'.format(round((y / self.baseline_price - 1) * 100, 1))
+                percent_yticks.append(p)
+            self.axis.set_yticklabels(percent_yticks)
+
         self.__show_chart_info()
 
         self.figure.subplots_adjust(top=self.top_spacing)
@@ -159,7 +169,7 @@ class Chart():
             if self.current_price < 0.1:
                 self.current_price_str = '${:,.4f}'.format(self.current_price)
             else:
-                self.current_price_str = '${:,.2f}'.format(self.current_price)
+                self.current_price_str = '$i'.format(self.current_price)
             self.axis.text(self.current_price_xpos, self.price_info_height, self.current_price_str,
                 transform=plt.gcf().transFigure,
                 fontsize=self.current_price_fontsize)
@@ -195,7 +205,7 @@ class Chart():
             **self.after_hours_tint)
 
         # Add a dashed line indicating the opening price
-        self.axis.axhline(self.initial_price,
+        self.axis.axhline(self.baseline_price,
             **self.initial_price_line_style)
 
         market_close_time = self.market_hours.closes_at

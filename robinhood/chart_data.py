@@ -3,16 +3,16 @@ from chart_data import ChartData
 from multiprocessing.pool import ThreadPool
 from datetime import datetime, timedelta
 from dateutil import parser as dateparser
-from robinhood.models import Instrument, Quote, Historicals, OptionInstrument, OptionQuote, OptionHistoricals, Market
+from robinhood.models import Stock, Option, Market
 
 # Name of market to use in Robinhood
 MARKET = 'XNYS'
 
 class RobinhoodChartData(ChartData):
 
-    def __init__(self, name, span, instruments):
-        current_price = 0
-        initial_price = 0
+    def __init__(self, name, span, instruments, initial_value = 0):
+        current_price = initial_value
+        initial_price = initial_value
 
         stock_instrument_urls = []
         option_instrument_urls = []
@@ -39,7 +39,7 @@ class RobinhoodChartData(ChartData):
             instrument_weights[instruments[0].url] = 1
 
         for i in instruments:
-            if type(i) is OptionInstrument:
+            if type(i) is Option:
                 option_instrument_urls.append(i.url)
             else:
                 stock_instrument_urls.append(i.url)
@@ -48,21 +48,21 @@ class RobinhoodChartData(ChartData):
         historicals_list = []
 
         if stock_instrument_urls:
-            stock_quotes = Quote.search(instruments=stock_instrument_urls)
+            stock_quotes = Stock.Quote.search(instruments=stock_instrument_urls)
             for stock_quote in stock_quotes:
                 weight = instrument_weights[stock_quote.instrument]
                 current_price += (stock_quote.last_extended_hours_trade_price or stock_quote.last_trade_price) * weight
             historical_params['instruments'] = stock_instrument_urls
-            historicals_list += Historicals.search(**historical_params)
+            historicals_list += Stock.Historicals.search(**historical_params)
 
         if option_instrument_urls:
-            option_quotes = OptionQuote.search(instruments=option_instrument_urls)
+            option_quotes = Option.Quote.search(instruments=option_instrument_urls)
             for option_quote in option_quotes:
                 weight = instrument_weights[option_quote.instrument]
                 # Multiply by 100 to get the value of a single contract
                 current_price += option_quote.adjusted_mark_price * weight * 100
             historical_params['instruments'] = option_instrument_urls
-            historicals_list += OptionHistoricals.search(**historical_params)
+            historicals_list += Option.Historicals.search(**historical_params)
 
         time_price_map = {}
 
@@ -70,10 +70,10 @@ class RobinhoodChartData(ChartData):
             weight = instrument_weights[historicals.instrument]
             initial_price_set = False
 
-            if type(historicals) is Historicals and historicals.previous_close_price:
+            if type(historicals) is Stock.Historicals and historicals.previous_close_price:
                 initial_price += historicals.previous_close_price * weight
                 initial_price_set = True
-            elif type(historicals) is OptionHistoricals:
+            elif type(historicals) is Option.Historicals:
                 # Multiply by 100 to get the value of a single contract
                 weight *= 100
 
@@ -95,7 +95,9 @@ class RobinhoodChartData(ChartData):
                     time_price_map[historical.begins_at] = 0
                 time_price_map[historical.begins_at] += historical.close_price * weight
 
-        super().__init__(name, market_timezone, market_hours, time_price_map, initial_price, current_price, span)
+                baseline_price = initial_price - initial_value
+
+        super().__init__(name, market_timezone, market_hours, time_price_map, initial_price, baseline_price, current_price, span)
 
     def __get_start_date(self, span, market_hours):
         start_date = datetime.now() - span
@@ -105,11 +107,11 @@ class RobinhoodChartData(ChartData):
         return start_date
 
     def __get_market_hours(self, market):
-        market_hours = Market.hours(MARKET, datetime.now())
+        market_hours = market.hours(datetime.now())
         if not market_hours.is_open or datetime.now() < market_hours.extended_opens_at:
             # Get market hours for the previous open day
             date = market_hours.previous_open_hours.split('/')[-2]
-            market_hours = Market.hours(MARKET, date)
+            market_hours = market.hours(datetime.now())
         return market_hours
 
     @staticmethod

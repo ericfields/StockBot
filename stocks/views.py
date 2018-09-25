@@ -1,6 +1,3 @@
-from .stock_quote_handler import StockQuoteHandler
-from .option_quote_handler import OptionQuoteHandler
-from uuid import UUID
 from .utilities import *
 from django.views.decorators.cache import cache_page
 from django.urls import reverse
@@ -9,22 +6,36 @@ from datetime import datetime
 import json
 import re
 
-QUOTE_HANDLERS = [StockQuoteHandler, OptionQuoteHandler]
-
 def get_chart(request, identifiers, span = 'day'):
     span = str_to_duration(span)
 
     # Remove duplicates by converting to set (and back)
     identifiers = list(set(identifiers.split(',')))
-    print(identifiers)
 
-    instruments = [find_instrument(i) for i in identifiers]
-    if len(instruments) == 1:
-        chart_name = instruments[0].full_name()
+    portfolio = None
+    hide_value = False
+    initial_value = 0
+
+    if len(identifiers) == 1:
+        portfolio = find_portfolio(identifiers[0])
+
+
+    if portfolio:
+        instruments = {}
+        for security in portfolio.security_set.all():
+            instruments[security.instrument()] = security.count
+        # Use portfolio name as title
+        chart_name = portfolio.symbol
+        initial_value = portfolio.cash
+        hide_value = True
     else:
-        chart_name = ', '.join([i.short_name() for i in instruments])
+        instruments = [find_instrument(i) for i in identifiers]
+        if len(instruments) == 1:
+            chart_name = instruments[0].full_name()
+        else:
+            chart_name = ', '.join([i.short_name() for i in instruments])
 
-    return chart_img(chart_name, span, instruments)
+    return chart_img(chart_name, span, instruments, hide_value, initial_value)
 
 def get_mattermost_chart(request):
     body = request.POST.get('text', None)
@@ -60,10 +71,11 @@ def update_mattermost_chart(request):
     return HttpResponse(json.dumps(chart_response), content_type="application/json")
 
 def mattermost_chart(request, identifiers, span):
-    # Remove duplicates by converting to set (and back)
-    identifiers = list(set(identifiers))
     # Raise error if span is invalid
     str_to_duration(span)
+
+    # Remove duplicates by converting to set (and back)
+    identifiers = list(set(identifiers))
 
     portfolio = None
 
@@ -129,6 +141,7 @@ def get_chart_img(request, img_name):
 
     portfolio = None
     hide_value = False
+    initial_value = 0
 
     if len(identifiers) == 1:
         portfolio = find_portfolio(identifiers[0])
@@ -136,10 +149,10 @@ def get_chart_img(request, img_name):
     if portfolio:
         instruments = {}
         for security in portfolio.security_set.all():
-            instrument = find_instrument(str(security.instrument_id))
-            instruments[instrument] = security.count
+            instruments[security.instrument()] = security.count
         # Use portfolio name as title
         chart_name = portfolio.symbol
+        initial_value = portfolio.cash
         hide_value = True
     else:
         instruments = [find_instrument(i) for i in identifiers]
@@ -148,30 +161,7 @@ def get_chart_img(request, img_name):
         else:
             chart_name = ', '.join([i.short_name() for i in instruments])
 
-    return chart_img(chart_name, span, instruments, hide_value)
-
-def find_instrument(identifier):
-    instrument = None
-    for handler in QUOTE_HANDLERS:
-        try:
-            instrument = handler.get_instrument(UUID(identifier))
-            if instrument:
-                break
-        except ValueError:
-            # Identifier is not a UUID. Search by its identifier string instead
-            pass
-
-        if re.match(handler.FORMAT, identifier.upper()):
-            instrument = handler.search_for_instrument(identifier.upper())
-            break
-
-    if not instrument:
-        # No valid handlers for this identifier format
-        raise BadRequestException("Invalid identifier '{}'. Valid formats:\n\t{}".format(
-            identifier, valid_format_example_str())
-        )
-
-    return instrument
+    return chart_img(chart_name, span, instruments, hide_value, initial_value)
 
 def find_portfolio(symbol):
     if not re.match('^[A-Z]{1,14}$', symbol):

@@ -8,17 +8,15 @@ class Authentication(ApiResource):
         'token': str
     }
 
-class Quote(ApiResource):
-    endpoint_path = "/quotes"
+class HistoricalItem(ApiModel):
     attributes = {
-        'symbol': str,
-        'last_trade_price': float,
-        'last_extended_hours_trade_price': float,
-        'updated_at': datetime,
-        'instrument': str
+        'begins_at': datetime,
+        'open_price': float,
+        'close_price': float,
+        'interpolated': bool
     }
 
-class Instrument(ApiResource):
+class Stock(ApiResource):
     endpoint_path = "/instruments"
     cached = True
     attributes = {
@@ -30,6 +28,15 @@ class Instrument(ApiResource):
         'tradable_chain_id': str,
         'url': str
     }
+
+    def current_value(self):
+        return self.quote().last_trade_price
+
+    def quote(self):
+        return Stock.Quote.get(self.id)
+
+    def fundamentals(self):
+        return Fundamentals.get(self.id)
 
     def full_name(self):
         return "{} ({})".format(
@@ -43,70 +50,38 @@ class Instrument(ApiResource):
     def identifier(self):
         return self.symbol
 
+    class Quote(ApiResource):
+        endpoint_path = "/quotes"
+        attributes = {
+            'symbol': str,
+            'last_trade_price': float,
+            'last_extended_hours_trade_price': float,
+            'updated_at': datetime,
+            'instrument': str
+        }
+
+    class Historicals(ApiResource):
+        endpoint_path = "/quotes/historicals"
+        attributes = {
+            'previous_close_price': float,
+            'instrument': str
+        }
+
+        class Item(HistoricalItem):
+            list_key = 'historicals'
+            pass
+
+    class Fundamentals(ApiResource):
+        endpoint_path = "/fundamentals"
+        cached = True
+        attributes = {
+            'description': str
+        }
+
     def __str__(self):
         return self.simple_name()
 
-class Fundamentals(ApiResource):
-    endpoint_path = "/fundamentals"
-    cached = True
-    attributes = {
-        'description': str
-    }
-
-class HistoricalItem(ApiModel):
-    attributes = {
-        'begins_at': datetime,
-        'open_price': float,
-        'close_price': float,
-        'interpolated': bool
-    }
-
-class Historicals(ApiResource):
-    endpoint_path = "/quotes/historicals"
-    attributes = {
-        'previous_close_price': float,
-        'instrument': str
-    }
-
-    class Item(HistoricalItem):
-        list_key = 'historicals'
-        pass
-
-class Market(ApiResource):
-    endpoint_path = "/markets"
-    cached = True
-    attributes = {
-        'name': str,
-        'acronym': str,
-        'mic': str,
-        'timezone': str
-    }
-
-    class Hours(ApiResource):
-        endpoint_path = "/hours"
-        cached = True
-        attributes = {
-            'opens_at': datetime,
-            'closes_at': datetime,
-            'extended_opens_at': datetime,
-            'extended_closes_at': datetime,
-            'is_open': bool ,
-            'previous_open_hours': str
-        }
-
-    @classmethod
-    def hours(cls, market_mic, date):
-        if isinstance(date, datetime):
-            date = date.strftime("%Y-%m-%d")
-        base_url = cls.resource_url(market_mic)
-        resource_url = "{}hours/{}/".format(base_url, date)
-        data = cls.request(resource_url)
-        if data:
-            return Market.Hours(**data)
-        else:
-            return None
-
-class OptionInstrument(ApiResource):
+class Option(ApiResource):
     endpoint_path = "/options/instruments"
     cached = True
     attributes = {
@@ -120,6 +95,17 @@ class OptionInstrument(ApiResource):
         'chain_symbol': str,
         'url': str
     }
+
+    def current_value(self):
+        return self.quote().adjusted_mark_price * 100
+
+    def quote(self):
+        return Option.Quote.get(self.id)
+
+    def historicals(self, start_date, span):
+        params = ApiResource.historical_params(start_date, span)
+        params['instruments'] = self.url
+        return Historicals.search(**params)
 
     def full_name(self):
         symbol = self.chain_symbol
@@ -152,26 +138,55 @@ class OptionInstrument(ApiResource):
         symbol = self.chain_symbol
         return "{}{}{}@{}".format(symbol, price, type, expiration)
 
+
+    class Quote(ApiResource):
+        endpoint_path = "/marketdata/options"
+        authenticated = True
+        attributes = {
+            'adjusted_mark_price': float,
+            'previous_close_price': float,
+            'instrument': str
+        }
+
+    class Historicals(ApiResource):
+        endpoint_path = "/marketdata/options/historicals"
+        authenticated = True
+
+        attributes = {
+            'instrument': str
+        }
+
+        class Item(HistoricalItem):
+            list_key = 'data_points'
+            pass
+
+
     def __str__(self):
         return self.simple_name()
 
-class OptionQuote(ApiResource):
-    endpoint_path = "/marketdata/options"
-    authenticated = True
+class Market(ApiResource):
+    endpoint_path = "/markets"
+    cached = True
     attributes = {
-        'adjusted_mark_price': float,
-        'previous_close_price': float,
-        'instrument': str
+        'name': str,
+        'acronym': str,
+        'mic': str,
+        'timezone': str
     }
 
-class OptionHistoricals(ApiResource):
-    endpoint_path = "/marketdata/options/historicals"
-    authenticated = True
+    class Hours(ApiModel):
+        attributes = {
+            'opens_at': datetime,
+            'closes_at': datetime,
+            'extended_opens_at': datetime,
+            'extended_closes_at': datetime,
+            'is_open': bool ,
+            'previous_open_hours': str
+        }
 
-    attributes = {
-        'instrument': str
-    }
-
-    class Item(HistoricalItem):
-        list_key = 'data_points'
-        pass
+    def hours(self, date):
+        if isinstance(date, datetime):
+            date = date.strftime("%Y-%m-%d")
+        resource_url = Market.resource_url() + self.mic + "/hours/" + date
+        data = Market.request(resource_url)
+        return Market.Hours(**data)

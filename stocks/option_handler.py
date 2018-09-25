@@ -1,28 +1,28 @@
-from .quote_handler import QuoteHandler
+from .handler import Handler
 from robinhood.api import ApiResource
-from robinhood.models import OptionInstrument
+from robinhood.models import Option
 from .exceptions import BadRequestException, ConfigurationException
-from .stock_quote_handler import StockQuoteHandler
+from .stock_handler import StockHandler
 from dateutil import parser as dateparser
 import re
 
-class OptionQuoteHandler(QuoteHandler):
+class OptionHandler(Handler):
 
     TYPE = 'option'
     FORMAT = '^([A-Z\.]+)([0-9]+(\.[05]0?)?)([CP])@?([0-9\/\-]+)?$'
     EXAMPLE = "AAPL250.5C@12-21"
 
     def get_instrument(instrument_uuid):
-        OptionQuoteHandler.check_authentication()
-        return OptionInstrument.get(instrument_uuid)
+        OptionHandler.check_authentication()
+        return Option.get(instrument_uuid)
 
     def search_for_instrument(identifier):
-        OptionQuoteHandler.check_authentication()
-        symbol, price, type, expiration = OptionQuoteHandler.parse_option(identifier)
+        OptionHandler.check_authentication()
+        symbol, price, type, expiration = OptionHandler.parse_option(identifier)
 
-        stock_instrument = StockQuoteHandler.search_for_instrument(symbol)
+        stock_instrument = StockHandler.search_for_instrument(symbol)
 
-        instruments = OptionInstrument.search(
+        instruments = Option.search(
             chain_id=stock_instrument.tradable_chain_id,
             strike_price=price,
             type=type,
@@ -57,7 +57,7 @@ class OptionQuoteHandler(QuoteHandler):
             raise ConfigurationException("This command requires an authenticated backend API call, but credentials are not configured for this server.")
 
     def parse_option(option_str):
-        match = re.match(OptionQuoteHandler.FORMAT, option_str)
+        match = re.match(OptionHandler.FORMAT, option_str)
 
         parts = match.groups()
 
@@ -71,7 +71,7 @@ class OptionQuoteHandler(QuoteHandler):
 
         if expiration:
             # Parse expiration date string
-            expiration = OptionQuoteHandler.parse_expiration_date(expiration)
+            expiration = OptionHandler.parse_expiration_date(expiration)
 
         return symbol, price, type, expiration
 

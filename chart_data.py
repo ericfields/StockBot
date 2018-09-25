@@ -5,7 +5,7 @@ from pytz import timezone
 class ChartData():
     market_timezone = None
 
-    def __init__(self, security_name, market_timezone, market_hours, time_price_map, initial_price, current_price, span=timedelta(days=1)):
+    def __init__(self, security_name, market_timezone, market_hours, time_price_map, initial_price, baseline_price, current_price, span=timedelta(days=1)):
         self.security_name = security_name
 
         self.market_timezone = timezone(market_timezone)
@@ -14,6 +14,7 @@ class ChartData():
         self.series = pd.Series(time_price_map)
 
         self.initial_price = initial_price
+        self.baseline_price = baseline_price
         self.current_price = current_price
         self.updated_at = datetime.now()
         self.span = span

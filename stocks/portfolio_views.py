@@ -1,20 +1,63 @@
 from .models import User, Portfolio, Security
-from .stock_quote_handler import StockQuoteHandler
-from .option_quote_handler import OptionQuoteHandler
-from .utilities import mattermost_text
+from .stock_handler import StockHandler
+from .option_handler import OptionHandler
+from .utilities import mattermost_text, find_instrument
 from .exceptions import BadRequestException
-from .views import find_instrument
+from robinhood.models import Stock, Option
 import re
 
-QUOTE_HANDLERS = [StockQuoteHandler, OptionQuoteHandler]
-
-def portfolios(request):
+def portfolio(request):
     if request.POST.get('text', None):
-        return create_portfolio(request)
+        return portfolio_action(request)
     else:
-        return get_portfolio(request)
+        return display_portfolio(request)
 
-def get_portfolio(request):
+def portfolio_action(request):
+    usage_str = """Usage:
+/portfolio create [symbol] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio add [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio remove [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio buy [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio sell [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio destroy
+"""
+
+    body = request.POST.get('text', None)
+    parts = re.split('[,\s]+', body)
+
+    command = parts[0].lower()
+    parts.pop(0)
+
+    remove_assets = False
+    maintain_value = False
+
+    user = get_or_create_user(request)
+
+    if command not in ['create', 'destroy', 'add', 'remove', 'buy', 'sell']:
+        raise BadRequestException(usage_str)
+
+    if command == 'create':
+        return create_portfolio(user, parts)
+    else:
+        portfolio = get_or_create_portfolio(user)
+
+    if command == 'destroy':
+        return delete_portfolio(portfolio)
+
+    remove_assets = False
+    maintain_value = False
+
+    if command == 'remove':
+        remove_assets = True
+    elif command == 'buy':
+        maintain_value = True
+    elif command == 'sell':
+        maintain_value = True
+        remove_assets = True
+
+    return update_portfolio(portfolio, parts, remove_assets=remove_assets, maintain_value=maintain_value)
+
+def display_portfolio(request):
     user = get_or_create_user(request)
 
     try:
@@ -22,56 +65,41 @@ def get_portfolio(request):
     except Portfolio.DoesNotExist:
         raise BadRequestException("You don't have a portfolio")
 
-    securities = portfolio.security_set.all()
+    return print_portfolio(portfolio)
 
-    response = "{}:\n{}".format(portfolio.symbol, securities_to_str(securities))
-    return mattermost_text(response)
+def create_portfolio(user, parts):
+    usage_str = "Usage: /portfolio create [symbol] [$cash] [stock1:count, [stock2: count, [option1: count...]]]"
 
-def create_portfolio(request):
-    usage_str = "Usage: command-name portfolio_symbol"
-
-    body = request.POST.get('text', None)
-    if not body:
-        raise BadRequestException(usage_str)
-    parts = body.split(' ')
-    if len(parts) == 0 or not parts[0]:
+    if not parts:
         raise BadRequestException(usage_str)
 
-    symbol = parts[0].upper()
-    if not re.match('^[A-Z]{1,14}$', symbol):
-        raise BadRequestException("Name must be a string of letters no longer than 14 characters")
+    # Check for portfolio symbol
+    if re.match('^[A-Z]{1,14}$', parts[0].upper()):
+        symbol = parts[0].upper()
+        portfolio = get_or_create_portfolio(user, symbol)
+        parts.pop(0)
+    else:
+        # Get the user's existing portfolio, if present
+        portfolio = get_or_create_portfolio(user)
 
-    user = get_or_create_user(request)
+    return update_portfolio(portfolio, parts, replace_securities=True)
 
-    # Ensure that user only has one portfolio (for now)
-    portfolio = get_or_create_portfolio(user, symbol)
-    return mattermost_text("Portfolio ready: {}".format(symbol))
-
-def delete_portfolio(request):
-    user = get_or_create_user(request)
-    portfolio = get_or_create_portfolio(user)
+def delete_portfolio(portfolio):
     portfolio.delete()
     return mattermost_text("{} deleted.".format(portfolio.symbol))
 
-def add_to_portfolio(request):
-    return modify_portfolio(request)
+def update_portfolio(portfolio, security_defs, **opts):
+    # Check for initial cash amount
+    if security_defs and re.match('^\$[0-9]+(\.[0-9]{2})?$', security_defs[0]):
+        portfolio.cash = float(security_defs[0].replace('$', ''))
+        security_defs.pop(0)
 
-def remove_from_portfolio(request):
-    return modify_portfolio(request, True)
+    process_securities(portfolio, security_defs, **opts)
 
-def modify_portfolio(request, remove_assets = False):
-    usage_str = "Usage: command-name [stock1:count, option1: count...]"
+    return print_portfolio(portfolio)
 
-    user = get_or_create_user(request)
-    portfolio = get_or_create_portfolio(user)
-
-    body = request.POST.get('text', None)
-    if not body:
-        raise BadRequestException(usage_str)
-
+def process_securities(portfolio, security_defs, remove_assets = False, maintain_value = False, replace_securities = False):
     securities_to_save = []
-
-    security_defs = re.split('[\s,]+', body)
     for sd in security_defs:
         parts = re.split('[:=]', sd)
         if not parts:
@@ -87,6 +115,12 @@ def modify_portfolio(request, remove_assets = False):
 
         security = get_or_create_security(portfolio, identifier)
 
+        if replace_securities:
+            # Ensure the count starts at 0 since it's being replaced
+            security.count = 0
+
+        cash_value = security.instrument().current_value() * count
+
         if remove_assets:
             if count > security.count:
                 if count % 1 == 0:
@@ -94,30 +128,52 @@ def modify_portfolio(request, remove_assets = False):
                 type = security.get_type_display()
                 raise BadRequestException("You do not have {} {} {}(s) to sell in your portfolio".format(count, identifier, type))
             security.count -= count
+            if maintain_value:
+                portfolio.cash -= cash_value
         else:
+            if maintain_value:
+                if portfolio.cash < cash_value:
+                    raise BadRequestException("You do not have enough cash to buy {} {} {}s. You must have at least ${:,.2f} in your portfolio to buy these (you currently have ${:,.2f}).".format(
+                        count, identifier, security.get_type_display(), cash_value, portfolio.cash
+                    ))
+                portfolio.cash -= cash_value
+
             security.count += count
+
         securities_to_save.append(security)
 
-    # Wait until all securities have been validated before saving
+    # Wait until all transactions have been validated before modifying the database
+
+    if replace_securities:
+        # Delete any securites not specified in this request
+        new_security_ids = [s.id for s in securities_to_save]
+        for s in portfolio.security_set.all():
+            if not s._state.adding and s.id not in new_security_ids:
+                s.delete()
+
     for s in securities_to_save:
         if s.count <= 0:
             s.delete()
         else:
             s.save()
 
-    response = "New portfolio:\n{}".format(securities_to_str(portfolio.security_set.all()))
-    return mattermost_text(response)
+    portfolio.save()
+
 
 def get_or_create_security(portfolio, identifier):
     instrument = find_instrument(identifier)
     try:
         return Security.objects.get(portfolio=portfolio, instrument_id=instrument.id)
     except Security.DoesNotExist:
-        for handler in QUOTE_HANDLERS:
-            if re.match(handler.FORMAT, identifier):
-                type = handler.TYPE
+        if isinstance(instrument, Stock):
+            type = Security.STOCK
+        elif isinstance(instrument, Option):
+            type = Security.OPTION
+        else:
+            raise Exception("No Security type defined for instrument of type '{}''".format(type(instrument)))
+
         return Security(portfolio=portfolio, instrument_id=instrument.id,
-            identifier=instrument.identifier(), type=type[0].upper(), count=0)
+            identifier=instrument.identifier(), type=type, count=0)
 
 def get_or_create_user(request):
     user_id = request.POST.get('user_id', None)
@@ -148,14 +204,9 @@ def get_or_create_portfolio(user, symbol = None):
                 portfolio = Portfolio.objects.get(user=user)
             except Portfolio.DoesNotExist:
                 portfolio = Portfolio(user=user)
-            # Verify that this portfolio name does not match an instrument name
-            instrument = None
-            try:
-                instrument = find_instrument(symbol)
-            except BadRequestException:
-                # Instrument doesn't exist
-                pass
-            if instrument:
+
+            # Verify that this portfolio name does not match a stock name
+            if Stock.search(symbol=symbol):
                 raise BadRequestException("Can't use this name; a stock named {} already exists".format(symbol))
 
             portfolio.symbol = symbol
@@ -167,6 +218,15 @@ def get_or_create_portfolio(user, symbol = None):
             raise BadRequestException("You don't have a portfolio.")
     return portfolio
 
+def print_portfolio(portfolio):
+    securities = portfolio.security_set.all()
+    cash_value = portfolio.cash
+    total_value = sum([s.current_value() for s in securities]) + cash_value
+    response = "{} (${:,.2f}):\n\tCash: ${:,.2f}\n\t{}".format(
+        portfolio.symbol, total_value, cash_value, securities_to_str(securities)
+    )
+    return mattermost_text(response)
+
 def securities_to_str(securities):
     security_strs = []
     for s in securities:
@@ -176,4 +236,6 @@ def securities_to_str(securities):
         else:
             security_str += str(s.count)
         security_strs.append(security_str)
-    return "\n".join(security_strs)
+    if not security_strs:
+        return "No assets in portfolio"
+    return "\n\t".join(security_strs)
