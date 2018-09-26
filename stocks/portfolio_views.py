@@ -155,7 +155,7 @@ def process_securities(portfolio, security_defs, remove_assets = False, maintain
                 raise BadRequestException("You do not have {} {} {}(s) to sell in your portfolio".format(count, identifier, type))
             security.count -= count
             if maintain_value:
-                portfolio.cash -= cash_value
+                portfolio.cash += cash_value
         else:
             if maintain_value:
                 if portfolio.cash < cash_value:
