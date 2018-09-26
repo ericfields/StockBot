@@ -105,7 +105,10 @@ def delete_portfolio(portfolio):
 def update_portfolio(portfolio, security_defs, **opts):
     # Check for initial cash amount
     if security_defs and re.match('^\$[0-9]+(\.[0-9]{2})?$', security_defs[0]):
-        portfolio.cash = float(security_defs[0].replace('$', ''))
+        cash_value = float(security_defs[0].replace('$', ''))
+        if cash_value > 1000000000:
+            raise BadRequestException("Highly doubt you have over a billion dollars in cash")
+        portfolio.cash = cash_value
         security_defs.pop(0)
 
     process_securities(portfolio, security_defs, **opts)
@@ -122,6 +125,8 @@ def process_securities(portfolio, security_defs, remove_assets = False, maintain
         if len(parts) > 1:
             try:
                 count = float(parts[1])
+                if count > 1000000000:
+                    raise BadRequestException("Highly doubt you have over a billion shares")
             except ValueError:
                 raise BadRequestException("Invalid count: '{}'".format(parts[1]))
         else:
