@@ -15,6 +15,7 @@ def portfolio(request):
 def portfolio_action(request):
     usage_str = """Usage:
 /portfolio create [symbol] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio rename [symbol]
 /portfolio add [$cash] [stock1:count, [stock2: count, [option1: count...]]]
 /portfolio remove [$cash] [stock1:count, [stock2: count, [option1: count...]]]
 /portfolio buy [stock1:count, [stock2: count, [option1: count...]]]
@@ -33,13 +34,26 @@ def portfolio_action(request):
 
     user = get_or_create_user(request)
 
-    if command not in ['create', 'destroy', 'add', 'remove', 'buy', 'sell']:
+    if command not in ['create', 'rename', 'destroy', 'add', 'remove', 'buy', 'sell']:
         raise BadRequestException(usage_str)
 
     if command == 'create':
         return create_portfolio(user, parts)
     else:
         portfolio = get_or_create_portfolio(user)
+
+    if command == 'rename':
+        # Check for portfolio symbol
+        if not parts:
+            raise BadRequestException("Usage: /portfolio rename [symbol]")
+
+        symbol = parts[0].upper()
+        if verify_symbol(symbol):
+            portfolio.symbol = symbol
+            portfolio.save()
+            return mattermost_text("Portfolio renamed to {}".format(symbol))
+        else:
+            raise BadRequestException("Invalid symbol: '{}'. Symbol must be an alphabetic string no longer than 14 characters.".format(symbol))
 
     if command == 'destroy':
         return delete_portfolio(portfolio)
@@ -74,7 +88,7 @@ def create_portfolio(user, parts):
         raise BadRequestException(usage_str)
 
     # Check for portfolio symbol
-    if re.match('^[A-Z]{1,14}$', parts[0].upper()):
+    if verify_symbol(parts[0]):
         symbol = parts[0].upper()
         portfolio = get_or_create_portfolio(user, symbol)
         parts.pop(0)
@@ -217,6 +231,14 @@ def get_or_create_portfolio(user, symbol = None):
         except Portfolio.DoesNotExist:
             raise BadRequestException("You don't have a portfolio.")
     return portfolio
+
+def verify_symbol(symbol):
+    symbol = symbol.upper()
+    if re.match('^[A-Z]{1,14}$', symbol):
+        return True
+    else:
+        return False
+
 
 def print_portfolio(portfolio):
     securities = portfolio.security_set.all()

@@ -28,6 +28,10 @@ Note that a stock/option identifier with no number after it represents one of th
 
 You can recreate the portfolio in this same way at any time. Note that recreating the portfolio deletes any of the old assets you had, and remakes them from scratch!
 
+Each user can only have one portfolio. To rename your portfolio:
+
+`/portfolio rename MYNEWSTUFF`
+
 You can see the contents of your own portfolio by simply running the command with no arguments:
 
 `/portfolio`
