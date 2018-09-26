@@ -169,7 +169,7 @@ class Chart():
             if self.current_price < 0.1:
                 self.current_price_str = '${:,.4f}'.format(self.current_price)
             else:
-                self.current_price_str = '$i'.format(self.current_price)
+                self.current_price_str = '${:,.2f}'.format(self.current_price)
             self.axis.text(self.current_price_xpos, self.price_info_height, self.current_price_str,
                 transform=plt.gcf().transFigure,
                 fontsize=self.current_price_fontsize)
