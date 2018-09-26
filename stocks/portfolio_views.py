@@ -103,14 +103,6 @@ def delete_portfolio(portfolio):
     return mattermost_text("{} deleted.".format(portfolio.symbol))
 
 def update_portfolio(portfolio, security_defs, **opts):
-    # Check for initial cash amount
-    if security_defs and re.match('^\$[0-9]+(\.[0-9]{2})?$', security_defs[0]):
-        cash_value = float(security_defs[0].replace('$', ''))
-        if cash_value > 1000000000:
-            raise BadRequestException("Highly doubt you have over a billion dollars in cash")
-        portfolio.cash = cash_value
-        security_defs.pop(0)
-
     process_securities(portfolio, security_defs, **opts)
 
     return print_portfolio(portfolio)
@@ -118,6 +110,21 @@ def update_portfolio(portfolio, security_defs, **opts):
 def process_securities(portfolio, security_defs, remove_assets = False, maintain_value = False, replace_securities = False):
     securities_to_save = []
     for sd in security_defs:
+        # Check for cash value
+        if re.match('^\$[0-9]+(\.[0-9]{2})?$', sd):
+            if maintain_value:
+                raise BadRequestException("Cannot specify a cash value in buy/sell commands")
+            cash_value = float(sd.replace('$', ''))
+            if cash_value > 1000000000:
+                raise BadRequestException("Highly doubt you have over a billion dollars in cash")
+            if remove_assets:
+                if cash_value > portfolio.cash:
+                    raise BadRequestException("You do not have {} in cash to remove".format(sd))
+                portfolio.cash -= cash_value
+            else:
+                portfolio.cash += cash_value
+            continue
+
         parts = re.split('[:=]', sd)
         if not parts:
             raise BadRequestException("Invalid definition: '{}'".format(sd))
