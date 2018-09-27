@@ -117,7 +117,9 @@ def process_securities(portfolio, security_defs, remove_assets = False, maintain
             cash_value = float(sd.replace('$', ''))
             if cash_value > 1000000000:
                 raise BadRequestException("Highly doubt you have over a billion dollars in cash")
-            if remove_assets:
+            if replace_securities:
+                portfolio.cash = cash_value
+            elif remove_assets:
                 if cash_value > portfolio.cash:
                     raise BadRequestException("You do not have {} in cash to remove".format(sd))
                 portfolio.cash -= cash_value

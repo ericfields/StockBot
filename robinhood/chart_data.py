@@ -92,12 +92,11 @@ class RobinhoodChartData(ChartData):
                         initial_price_set = True
 
                 if historical.begins_at not in time_price_map:
-                    time_price_map[historical.begins_at] = 0
+                    time_price_map[historical.begins_at] = initial_value
+
                 time_price_map[historical.begins_at] += historical.close_price * weight
 
-                baseline_price = initial_price - initial_value
-
-        super().__init__(name, market_timezone, market_hours, time_price_map, initial_price, baseline_price, current_price, span)
+        super().__init__(name, market_timezone, market_hours, time_price_map, initial_price, current_price, span)
 
     def __get_start_date(self, span, market_hours):
         start_date = datetime.now() - span
