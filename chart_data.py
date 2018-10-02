@@ -6,7 +6,7 @@ MARKET = 'XNYS'
 
 class ChartData():
     def __init__(self, portfolio, span):
-        current_price = reference_price = portfolio.cash
+        current_price = portfolio.current_value()
 
         market = Market.get(MARKET)
         market_timezone = market.timezone
@@ -24,16 +24,7 @@ class ChartData():
         else:
             start_time = end_time - span
 
-        historical_price_map = {}
-
-        for asset in portfolio.assets():
-            current_price += asset.current_value()
-            asset_reference_price, asset_historical_items = asset.historical_values(start_time, end_time)
-            reference_price += asset_reference_price * asset.weight()
-            for h in asset_historical_items:
-                if h.begins_at not in historical_price_map:
-                    historical_price_map[h.begins_at] = portfolio.cash
-                historical_price_map[h.begins_at] += h.close_price * asset.weight()
+        reference_price, historical_price_map = portfolio.historical_values(start_time, end_time)
 
         self.name = portfolio.name
 

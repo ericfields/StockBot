@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 import json
-from robinhood.models import Stock, Option
+from robinhood.models import Stock, Option, Instrument
 from datetime import datetime
 
 class User(models.Model):
@@ -28,6 +28,100 @@ class Portfolio(models.Model):
             return self.asset_set.all()
         else:
             return self.tmp_assets
+
+    def current_value(self):
+        total_value = self.cash
+
+        stock_endpoints = []
+        option_endpoints = []
+        stock_quotes = []
+        option_quotes = []
+        for asset in self.assets():
+            if asset.type == asset.__class__.STOCK:
+                stock_endpoints.append(asset.instrument().url)
+            elif asset.type == asset.__class__.OPTION:
+                option_endpoints.append(asset.instrument().url)
+
+        if stock_endpoints:
+            stock_quotes = Stock.Quote.search(instruments=stock_endpoints)
+        if option_endpoints:
+            option_quotes = Option.Quote.search(instruments=option_endpoints)
+
+        quote_map = {}
+        for quote in stock_quotes + option_quotes:
+            quote_map[quote.instrument] = quote
+
+        for asset in self.assets():
+            quote = quote_map[asset.instrument().url]
+            total_value += quote.price() * asset.weight()
+
+        return total_value
+
+
+    def historical_values(self, start_date, end_date):
+        historical_price_map = {}
+        reference_price = self.cash
+
+        # Make a single query for all historicals for each data type
+        stock_endpoints = []
+        option_endpoints = []
+        stock_historicals = []
+        option_historicals = []
+        for asset in self.assets():
+            if asset.type == asset.__class__.STOCK:
+                stock_endpoints.append(asset.instrument().url)
+            elif asset.type == asset.__class__.OPTION:
+                option_endpoints.append(asset.instrument().url)
+
+        historical_params = Instrument.historical_params(start_date, end_date)
+
+        if stock_endpoints:
+            stock_historicals = Stock.Historicals.search(instruments=stock_endpoints, **historical_params)
+        if option_endpoints:
+            option_historicals = Option.Historicals.search(instruments=option_endpoints, **historical_params)
+
+        historicals_map = {}
+        for historicals in stock_historicals + option_historicals:
+            historicals_map[historicals.instrument] = historicals
+
+        for asset in self.assets():
+            historicals = historicals_map[asset.instrument().url]
+            asset_reference_price, asset_historical_items = self.__process_historicals(asset, historicals, start_date, end_date)
+            reference_price += asset_reference_price * asset.weight()
+            for h in asset_historical_items:
+                if h.begins_at not in historical_price_map:
+                    historical_price_map[h.begins_at] = self.cash
+                historical_price_map[h.begins_at] += h.close_price * asset.weight()
+
+        return reference_price, historical_price_map
+
+
+    def __process_historicals(self, asset, historicals, start_date, end_date = datetime.now()):
+        if asset.date_bought and start_date < asset.date_bought:
+            start_date = asset.date_bought
+        if asset.date_sold and end_date > asset.date_sold:
+            end_date = asset.date_sold
+
+        # Filter values outside our date ranges
+        while historicals.items[0].begins_at < start_date:
+            historicals.items.pop(0)
+        while historicals.items[-1].begins_at > end_date:
+            historicals.items.pop()
+
+        reference_price = None
+        if asset.type == asset.__class__.STOCK and historicals.previous_close_price:
+            reference_price = historicals.previous_close_price
+        else:
+            # Use the first non-zero price value
+            for h in historicals.items:
+                if h.open_price > 0:
+                    reference_price = h.open_price
+                elif h.close_price > 0:
+                    reference_price = h.close_price
+                if reference_price:
+                    break
+
+        return reference_price, historicals.items
 
     def __str__(self):
         return self.name
@@ -83,45 +177,15 @@ class Asset(models.Model):
             w *= 100
         return w
 
-    def historical_values(self, start_date, end_date = datetime.now()):
-        historicals = self.instrument().historicals(start_date, end_date)
-
-        if self.date_bought and start_date < self.date_bought:
-            start_date = self.date_bought
-        if self.date_sold and end_date > self.date_sold:
-            end_date = self.date_sold
-
-        # Filter values outside our date ranges
-        while historicals.items[0].begins_at < start_date:
-            historicals.items.pop(0)
-        while historicals.items[-1].begins_at > end_date:
-            historicals.items.pop()
-
-        reference_price = None
-        if self.type == self.__class__.STOCK and historicals.previous_close_price:
-            reference_price = historicals.previous_close_price
-        else:
-            # Use the first non-zero price value
-            for h in historicals.items:
-                if h.open_price > 0:
-                    reference_price = h.open_price
-                elif h.close_price > 0:
-                    reference_price = h.close_price
-                if reference_price:
-                    break
-
-        return reference_price, historicals.items
-
     def instrument(self):
-        if self.instrument_object:
-            return self.instrument_object
-
-        if self.type == self.__class__.STOCK:
-            return Stock.get(self.instrument_id)
-        elif self.type == self.__class__.OPTION:
-            return Option.get(self.instrument_id)
-        else:
-            raise Exception("Cannot retrieve instrument object: No type specified for this instrument")
+        if not self.instrument_object:
+            if self.type == self.__class__.STOCK:
+                self.instrument_object = Stock.get(self.instrument_id)
+            elif self.type == self.__class__.OPTION:
+                self.instrument_object = Option.get(self.instrument_id)
+            else:
+                raise Exception("Cannot retrieve instrument object: No type specified for this instrument")
+        return self.instrument_object
 
     def __str__(self):
         return "{}:{}={}".format(self.portfolio.name, self.identifier, self.count)

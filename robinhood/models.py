@@ -115,8 +115,12 @@ class Stock(Instrument):
             'symbol': str,
             'last_trade_price': float,
             'last_extended_hours_trade_price': float,
-            'updated_at': datetime
+            'updated_at': datetime,
+            'instrument': str
         }
+
+        def price(self):
+            return self.last_extended_hours_trade_price or self.last_trade_price
 
     class Fundamentals(ApiResource):
         endpoint_path = "/fundamentals"
@@ -129,7 +133,7 @@ class Stock(Instrument):
         endpoint_path = "/quotes/historicals"
         attributes = {
             'previous_close_price': float,
-            'instrument': str
+            'instrument': str,
         }
 
         class Item(HistoricalItem):
@@ -145,7 +149,8 @@ class Stock(Instrument):
         'tradable_chain_id': str,
         'fundamentals': Fundamentals,
         'quote': Quote,
-        'market': Market
+        'market': Market,
+        'url': str
     }
 
     def current_value(self):
@@ -174,7 +179,8 @@ class Option(Instrument):
         'expiration_date': datetime,
         'chain_id': str,
         'type': str,
-        'chain_symbol': str
+        'chain_symbol': str,
+        'url': str
     }
 
     class Quote(ApiResource):
@@ -185,6 +191,9 @@ class Option(Instrument):
             'previous_close_price': float,
             'instrument': str
         }
+
+        def price(self):
+            return self.adjusted_mark_price
 
     class Historicals(ApiResource):
         endpoint_path = "/marketdata/options/historicals"
