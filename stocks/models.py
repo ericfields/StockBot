@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator
 import json
 from robinhood.models import Stock, Option
+from datetime import datetime
 
 class User(models.Model):
     id = models.CharField(primary_key=True, max_length=64)
@@ -15,14 +16,35 @@ class Portfolio(models.Model):
     name = models.CharField(max_length=14, unique=True)
     cash = models.FloatField(default=0, validators=[MinValueValidator(0)])
 
+    def __init__(self, *args, **kwargs):
+        self.tmp_assets = []
+        super().__init__(*args, **kwargs)
+
+    def add_asset(self, asset):
+        self.tmp_assets.append(asset)
+
+    def assets(self):
+        if self.pk:
+            return self.asset_set.all()
+        else:
+            return self.tmp_assets
+
     def __str__(self):
         return self.name
+
+    def value(self):
+        return self.cash + sum([a.current_value() for a in self.asset_set.all()])
 
 class Asset(models.Model):
     portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE)
     instrument_id = models.UUIDField(editable=False)
     identifier = models.CharField(max_length=32)
     count = models.FloatField(default=1, validators=[MinValueValidator(0)])
+
+    date_bought = models.DateTimeField(null=True)
+    date_sold = models.DateTimeField(null=True)
+
+    instrument_object = None
 
     STOCK = 'S'
     OPTION = 'O'
@@ -33,10 +55,67 @@ class Asset(models.Model):
 
     type = models.CharField(max_length=6, choices=TYPES)
 
+    def __init__(self, *args, **kwargs):
+        # Extract instrument object into component fields
+        if 'instrument' in kwargs:
+            instrument = kwargs['instrument']
+            del kwargs['instrument']
+            kwargs['instrument_id'] = instrument.id
+            kwargs['identifier'] = instrument.identifier()
+            if isinstance(instrument, Stock):
+                kwargs['type'] = self.__class__.STOCK
+            elif isinstance(instrument, Option):
+                kwargs['type'] = self.__class__.OPTION
+            else:
+                raise Exception("Unrecognized instrument type: {}".format(instrument.__class__))
+            self.instrument_object = instrument
+
+        super().__init__(*args, **kwargs)
+
     def current_value(self):
-        return self.instrument().current_value() * self.count
+        return self.instrument().current_value() * self.weight()
+
+    def weight(self):
+        w = self.count
+        if self.type == self.__class__.OPTION:
+            # The returned value should be that of a single option contract for the stock,
+            # i.e. that of a contract for 100 shares
+            w *= 100
+        return w
+
+    def historical_values(self, start_date, end_date = datetime.now()):
+        historicals = self.instrument().historicals(start_date, end_date)
+
+        if self.date_bought and start_date < self.date_bought:
+            start_date = self.date_bought
+        if self.date_sold and end_date > self.date_sold:
+            end_date = self.date_sold
+
+        # Filter values outside our date ranges
+        while historicals.items[0].begins_at < start_date:
+            historicals.items.pop(0)
+        while historicals.items[-1].begins_at > end_date:
+            historicals.items.pop()
+
+        reference_price = None
+        if self.type == self.__class__.STOCK and historicals.previous_close_price:
+            reference_price = historicals.previous_close_price
+        else:
+            # Use the first non-zero price value
+            for h in historicals.items:
+                if h.open_price > 0:
+                    reference_price = h.open_price
+                elif h.close_price > 0:
+                    reference_price = h.close_price
+                if reference_price:
+                    break
+
+        return reference_price, historicals.items
 
     def instrument(self):
+        if self.instrument_object:
+            return self.instrument_object
+
         if self.type == self.__class__.STOCK:
             return Stock.get(self.instrument_id)
         elif self.type == self.__class__.OPTION:

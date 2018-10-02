@@ -1,7 +1,9 @@
 from .utilities import *
 from django.views.decorators.cache import cache_page
 from django.urls import reverse
-from .models import Portfolio
+from .models import Portfolio, Asset
+from robinhood.models import Stock
+from chart_data import ChartData
 from datetime import datetime
 import json
 import re
@@ -13,29 +15,31 @@ def get_chart(request, identifiers, span = 'day'):
     identifiers = list(set(identifiers.split(',')))
 
     portfolio = None
-    hide_value = False
-    initial_value = 0
+    is_user_portfolio = False
 
     if len(identifiers) == 1:
+        # Check if this is a user portfolio
         portfolio = find_portfolio(identifiers[0])
+        if portfolio:
+            # Hide the pricing information for a user portfolio
+            is_user_portfolio = True
 
-
-    if portfolio:
-        instruments = {}
-        for asset in portfolio.asset_set.all():
-            instruments[asset.instrument()] = asset.count
-        # Use portfolio name as title
-        chart_name = portfolio.name
-        initial_value = portfolio.cash
-        hide_value = True
-    else:
+    if not portfolio:
+        # Create a portfolio for this quote
+        portfolio = Portfolio()
         instruments = [find_instrument(i) for i in identifiers]
+        for instrument in instruments:
+            asset = Asset(portfolio=portfolio, instrument=instrument, count=1)
+            portfolio.add_asset(asset)
         if len(instruments) == 1:
-            chart_name = instruments[0].full_name()
+            portfolio.name = instruments[0].full_name()
         else:
-            chart_name = ', '.join([i.short_name() for i in instruments])
+            portfolio.name = ', '.join([i.identifier() for i in instruments])
 
-    return chart_img(chart_name, span, instruments, hide_value, initial_value)
+    chart_data = ChartData(portfolio, span)
+    chart = Chart(chart_data, is_user_portfolio)
+    chart_img_data = chart.get_img_data()
+    return HttpResponse(chart_img_data, content_type="image/png")
 
 def get_mattermost_chart(request):
     body = request.POST.get('text', None)
@@ -77,28 +81,23 @@ def mattermost_chart(request, identifiers, span):
     # Remove duplicates by converting to set (and back)
     identifiers = list(set(identifiers))
 
-    portfolio = None
+    ids = None
 
-    # Check if this is a request for a portfolio
+    # Check if this is a user portfolio
     if len(identifiers) == 1:
         portfolio = find_portfolio(identifiers[0])
         if portfolio:
-            if len(portfolio.asset_set.all()) > 0:
-                # Provide the portfolio name as the identifier
-                ids = identifiers
-                chart_name = identifiers[0]
-            else:
-                # Empty portfolio, do not chart
-                raise BadRequestException("This portfolio is empty")
+            ids = [portfolio.name]
+            chart_name = portfolio.name
 
-    if not portfolio:
+    if not ids:
+        # Create a portfolio for this quote
         instruments = [find_instrument(i) for i in identifiers]
+        ids = [i.id for i in instruments]
         if len(instruments) == 1:
             chart_name = instruments[0].full_name()
         else:
-            chart_name = ', '.join([i.short_name() for i in instruments])
-
-        ids = [i.id for i in instruments]
+            chart_name = ', '.join([i.identifier() for i in instruments])
 
     # Add a timestamp to the image name to avoid caching future charts
     timestamp = datetime.now().strftime("%H%M%S")
@@ -139,35 +138,31 @@ def get_chart_img(request, img_name):
     span = str_to_duration(parts[-1])
 
     portfolio = None
-    hide_value = False
-    initial_value = 0
+    is_user_portfolio = False
 
     if len(identifiers) == 1:
+        # Check if this is a user portfolio
         portfolio = find_portfolio(identifiers[0])
+        if portfolio:
+            # Hide the pricing information for a user portfolio
+            is_user_portfolio = True
 
-    if portfolio:
-        instruments = {}
-        for asset in portfolio.asset_set.all():
-            instruments[asset.instrument()] = asset.count
-        # Use portfolio name as title
-        chart_name = portfolio.name
-        initial_value = portfolio.cash
-        hide_value = True
-    else:
+    if not portfolio:
+        # Create a portfolio for this quote
+        portfolio = Portfolio()
         instruments = [find_instrument(i) for i in identifiers]
+        for instrument in instruments:
+            asset = Asset(portfolio=portfolio, instrument=instrument, count=1)
+            portfolio.add_asset(asset)
         if len(instruments) == 1:
-            chart_name = instruments[0].full_name()
+            portfolio.name = instruments[0].full_name()
         else:
-            chart_name = ', '.join([i.short_name() for i in instruments])
+            portfolio.name = ', '.join([i.identifier() for i in instruments])
 
-    return chart_img(chart_name, span, instruments, hide_value, initial_value)
-
-def chart_img(name, span, instruments, hide_value = False, initial_value = 0):
-    chart_data = RobinhoodChartData(name, span, instruments, initial_value)
-    chart = Chart(chart_data, hide_value)
+    chart_data = ChartData(portfolio, span)
+    chart = Chart(chart_data, is_user_portfolio)
     chart_img_data = chart.get_img_data()
     return HttpResponse(chart_img_data, content_type="image/png")
-
 
 def find_portfolio(name):
     if not re.match('^[A-Z]{1,14}$', name):
@@ -178,16 +173,13 @@ def find_portfolio(name):
     except Portfolio.DoesNotExist:
         return None
 
-def valid_format_example_str():
-    return "\n\t".join(["{}: {}".format(h.TYPE, h.EXAMPLE) for h in QUOTE_HANDLERS])
-
 def stock_info(request):
     symbol = request.POST.get('text', None)
 
     if not symbol:
         raise BadRequestException("No stock was specified")
 
-    fundamentals = Fundamentals.get(symbol)
+    fundamentals = Stock.Fundamentals.get(symbol)
     response = fundamentals.description if fundamentals else 'Stock was not found'
     return mattermost_text(response)
 

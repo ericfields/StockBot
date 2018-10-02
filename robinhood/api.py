@@ -23,6 +23,11 @@ class ApiModel():
     last_auth_time = None
     auth_failure = None
 
+    # Flag indicating a type reference to the current class
+    class CurrentClass():
+        pass
+
+
     def __init__(self, **data):
         self.__assign_attributes(data)
 
@@ -47,49 +52,32 @@ class ApiModel():
     def __typed_attribute(self, attr, val):
         if val == None:
             return val
-        type = self.attributes[attr]
-        if type == None:
+        attr_type = self.attributes[attr]
+        if attr_type == None:
             return val
-        elif type == str:
+        elif attr_type == str:
             return str(val)
-        elif type == float:
+        elif attr_type == float:
             return float(val)
-        elif type == val:
+        elif attr_type == val:
             return int()
-        elif type == datetime:
+        elif attr_type == datetime:
             date = dateparser.parse(val).astimezone(pytz.utc).replace(tzinfo=None)
             return date
-        elif type == bool:
+        elif attr_type == bool:
             return val in [True, 'true', 'True', 't', 1]
+        elif type(attr_type) == type and issubclass(attr_type, ApiModel) or attr_type == self.__class__.CurrentClass:
+            # Value is a URL pointing to another resource.
+            # Create a method for retrieving the object
+            if attr_type == self.__class__.CurrentClass:
+                # CurrentClass is just a flag; the actual class is the current calling class
+                attr_type = self.__class__
+
+            def resource_function():
+                return attr_type(**attr_type.request(val))
+            return resource_function
         else:
-            return type(val)
-
-    @staticmethod
-    def historical_params(start_date, span):
-        now = datetime.now()
-
-        # If the security was listed after our requested span begins,
-        # we reduce the span to when the security was listed
-        if now - span < start_date:
-            span = now - start_date
-
-        bounds = None
-
-        # Robinhood only has a few options for requesting a span of historical
-        # Determine the minimum span of data we can request from Robinhood
-        if span <= timedelta(days=1):
-            request_span = 'day'
-            # Need to set request bounds to all trading hours as well
-            bounds = 'trading'
-        elif span <= timedelta(days=7):
-            request_span = 'week'
-        elif span <= timedelta(days=365):
-            request_span = 'year'
-        elif span <= timedelta(days=365*5):
-            request_span = '5year'
-        else:
-            # Do not set the request span. Equivalent to 'all'
-            request_span = None
+            return attr_type(val)
 
 class ApiCallException(Exception):
     code = None
@@ -220,6 +208,10 @@ class ApiResource(ApiModel):
     # Makes a request to Robinhood to retrieve data
     @classmethod
     def request(cls, resource_url, **params):
+        # Convert a pathname to a full Robinhood URL
+        if re.match('^\/', resource_url):
+            resource_url = ROBINHOOD_ENDPOINT + resource_url
+
         if params:
             param_strs = []
             for key in params:

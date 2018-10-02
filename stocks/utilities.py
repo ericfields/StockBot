@@ -1,6 +1,5 @@
 import re
 from .exceptions import BadRequestException, ForbiddenException
-from robinhood.chart_data import RobinhoodChartData
 from .stock_handler import StockHandler
 from .option_handler import OptionHandler
 from django.http import HttpResponse
@@ -63,3 +62,6 @@ def find_instrument(identifier):
         )
 
     return instrument
+
+def valid_format_example_str():
+    return "\n\t".join(["{}: {}".format(h.TYPE, h.EXAMPLE) for h in QUOTE_HANDLERS])
