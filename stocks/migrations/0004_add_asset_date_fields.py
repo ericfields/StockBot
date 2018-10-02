@@ -14,8 +14,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='asset',
             name='date_bought',
-            field=models.DateTimeField(null=True,default=django.utils.timezone.now),
-            preserve_default=False,
+            field=models.DateTimeField(null=True),
         ),
         migrations.AddField(
             model_name='asset',
