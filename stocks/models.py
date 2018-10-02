@@ -12,13 +12,13 @@ class User(models.Model):
 
 class Portfolio(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    symbol = models.CharField(max_length=14, unique=True)
+    name = models.CharField(max_length=14, unique=True)
     cash = models.FloatField(default=0, validators=[MinValueValidator(0)])
 
     def __str__(self):
-        return self.symbol
+        return self.name
 
-class Security(models.Model):
+class Asset(models.Model):
     portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE)
     instrument_id = models.UUIDField(editable=False)
     identifier = models.CharField(max_length=32)
@@ -45,4 +45,4 @@ class Security(models.Model):
             raise Exception("Cannot retrieve instrument object: No type specified for this instrument")
 
     def __str__(self):
-        return "{}:{}={}".format(self.portfolio.symbol, self.identifier, self.count)
+        return "{}:{}={}".format(self.portfolio.name, self.identifier, self.count)

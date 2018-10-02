@@ -3,12 +3,12 @@ given various identifiers"""
 class Handler():
 
     TYPE = None
-    """str: Simple string indicating what type of security this quote handler
+    """str: Simple string indicating what type of asset this quote handler
     processes, e.g.. 'stock', 'option'..."""
 
     FORMAT = None
     """str: Regular expression representing the format of a unique identifier
-    that can represent a single security"""
+    that can represent a single asset"""
 
     EXAMPLE = None
     """str: Example string of a unique identifier format that a user can provide

@@ -1,9 +1,10 @@
-from .models import User, Portfolio, Security
+from .models import User, Portfolio, Asset
 from .stock_handler import StockHandler
 from .option_handler import OptionHandler
 from .utilities import mattermost_text, find_instrument
 from .exceptions import BadRequestException
 from robinhood.models import Stock, Option
+from datetime import datetime
 import re
 
 def portfolio(request):
@@ -14,8 +15,8 @@ def portfolio(request):
 
 def portfolio_action(request):
     usage_str = """Usage:
-/portfolio create [symbol] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio rename [symbol]
+/portfolio create [name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio rename [name]
 /portfolio add [$cash] [stock1:count, [stock2: count, [option1: count...]]]
 /portfolio remove [$cash] [stock1:count, [stock2: count, [option1: count...]]]
 /portfolio buy [stock1:count, [stock2: count, [option1: count...]]]
@@ -43,17 +44,17 @@ def portfolio_action(request):
         portfolio = get_or_create_portfolio(user)
 
     if command == 'rename':
-        # Check for portfolio symbol
+        # Check for portfolio name
         if not parts:
-            raise BadRequestException("Usage: /portfolio rename [symbol]")
+            raise BadRequestException("Usage: /portfolio rename [name]")
 
-        symbol = parts[0].upper()
-        if verify_symbol(symbol):
-            portfolio.symbol = symbol
+        name = parts[0].upper()
+        if verify_name(name):
+            portfolio.name = name
             portfolio.save()
-            return mattermost_text("Portfolio renamed to {}".format(symbol))
+            return mattermost_text("Portfolio renamed to {}".format(name))
         else:
-            raise BadRequestException("Invalid symbol: '{}'. Symbol must be an alphabetic string no longer than 14 characters.".format(symbol))
+            raise BadRequestException("Invalid name: '{}'. Symbol must be an alphabetic string no longer than 14 characters.".format(name))
 
     if command == 'destroy':
         return delete_portfolio(portfolio)
@@ -82,54 +83,54 @@ def display_portfolio(request):
     return print_portfolio(portfolio)
 
 def create_portfolio(user, parts):
-    usage_str = "Usage: /portfolio create [symbol] [$cash] [stock1:count, [stock2: count, [option1: count...]]]"
+    usage_str = "Usage: /portfolio create [name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]"
 
     if not parts:
         raise BadRequestException(usage_str)
 
-    # Check for portfolio symbol
-    if verify_symbol(parts[0]):
-        symbol = parts[0].upper()
-        portfolio = get_or_create_portfolio(user, symbol)
+    # Check for portfolio name
+    if verify_name(parts[0]):
+        name = parts[0].upper()
+        portfolio = get_or_create_portfolio(user, name)
         parts.pop(0)
     else:
         # Get the user's existing portfolio, if present
         portfolio = get_or_create_portfolio(user)
 
-    return update_portfolio(portfolio, parts, replace_securities=True)
+    return update_portfolio(portfolio, parts, replace_assets=True)
 
 def delete_portfolio(portfolio):
     portfolio.delete()
-    return mattermost_text("{} deleted.".format(portfolio.symbol))
+    return mattermost_text("{} deleted.".format(portfolio.name))
 
-def update_portfolio(portfolio, security_defs, **opts):
-    process_securities(portfolio, security_defs, **opts)
+def update_portfolio(portfolio, asset_defs, **opts):
+    process_assets(portfolio, asset_defs, **opts)
 
     return print_portfolio(portfolio)
 
-def process_securities(portfolio, security_defs, remove_assets = False, maintain_value = False, replace_securities = False):
-    securities_to_save = []
-    for sd in security_defs:
+def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value = False, replace_assets = False):
+    assets_to_save = []
+    for ad in asset_defs:
         # Check for cash value
-        if re.match('^\$[0-9]+(\.[0-9]{2})?$', sd):
+        if re.match('^\$[0-9]+(\.[0-9]{2})?$', ad):
             if maintain_value:
                 raise BadRequestException("Cannot specify a cash value in buy/sell commands")
-            cash_value = float(sd.replace('$', ''))
+            cash_value = float(ad.replace('$', ''))
             if cash_value > 1000000000:
                 raise BadRequestException("Highly doubt you have over a billion dollars in cash")
-            if replace_securities:
+            if replace_assets:
                 portfolio.cash = cash_value
             elif remove_assets:
                 if cash_value > portfolio.cash:
-                    raise BadRequestException("You do not have {} in cash to remove".format(sd))
+                    raise BadRequestException("You do not have {} in cash to remove".format(ad))
                 portfolio.cash -= cash_value
             else:
                 portfolio.cash += cash_value
             continue
 
-        parts = re.split('[:=]', sd)
+        parts = re.split('[:=]', ad)
         if not parts:
-            raise BadRequestException("Invalid definition: '{}'".format(sd))
+            raise BadRequestException("Invalid definition: '{}'".format(ad))
         identifier = parts[0]
         if len(parts) > 1:
             try:
@@ -141,66 +142,66 @@ def process_securities(portfolio, security_defs, remove_assets = False, maintain
         else:
             count = 1
 
-        security = get_or_create_security(portfolio, identifier)
+        asset = get_or_create_asset(portfolio, identifier)
 
-        if replace_securities:
+        if replace_assets:
             # Ensure the count starts at 0 since it's being replaced
-            security.count = 0
+            asset.count = 0
 
-        cash_value = security.instrument().current_value() * count
+        cash_value = asset.instrument().current_value() * count
 
         if remove_assets:
-            if count > security.count:
+            if count > asset.count:
                 if count % 1 == 0:
                     count = round(count)
-                type = security.get_type_display()
+                type = asset.get_type_display()
                 raise BadRequestException("You do not have {} {} {}(s) to sell in your portfolio".format(count, identifier, type))
-            security.count -= count
+            asset.count -= count
             if maintain_value:
                 portfolio.cash += cash_value
         else:
             if maintain_value:
                 if portfolio.cash < cash_value:
                     raise BadRequestException("You do not have enough cash to buy {} {} {}s. You must have at least ${:,.2f} in your portfolio to buy these (you currently have ${:,.2f}).".format(
-                        count, identifier, security.get_type_display(), cash_value, portfolio.cash
+                        count, identifier, asset.get_type_display(), cash_value, portfolio.cash
                     ))
                 portfolio.cash -= cash_value
 
-            security.count += count
+            asset.count += count
 
-        securities_to_save.append(security)
+        assets_to_save.append(asset)
 
     # Wait until all transactions have been validated before modifying the database
 
-    if replace_securities:
-        # Delete any securites not specified in this request
-        new_security_ids = [s.id for s in securities_to_save]
-        for s in portfolio.security_set.all():
-            if not s._state.adding and s.id not in new_security_ids:
-                s.delete()
+    if replace_assets:
+        # Delete any assets not specified in this request
+        new_asset_ids = [a.id for a in assets_to_save]
+        for a in portfolio.asset_set.all():
+            if not a._state.adding and a.id not in new_asset_ids:
+                a.delete()
 
-    for s in securities_to_save:
-        if s.count <= 0:
-            s.delete()
+    for a in assets_to_save:
+        if a.count <= 0:
+            a.delete()
         else:
-            s.save()
+            a.save()
 
     portfolio.save()
 
 
-def get_or_create_security(portfolio, identifier):
+def get_or_create_asset(portfolio, identifier):
     instrument = find_instrument(identifier)
     try:
-        return Security.objects.get(portfolio=portfolio, instrument_id=instrument.id)
-    except Security.DoesNotExist:
+        return Asset.objects.get(portfolio=portfolio, instrument_id=instrument.id)
+    except Asset.DoesNotExist:
         if isinstance(instrument, Stock):
-            type = Security.STOCK
+            type = Asset.STOCK
         elif isinstance(instrument, Option):
-            type = Security.OPTION
+            type = Asset.OPTION
         else:
-            raise Exception("No Security type defined for instrument of type '{}''".format(type(instrument)))
+            raise Exception("No Asset type defined for instrument of type '{}''".format(type(instrument)))
 
-        return Security(portfolio=portfolio, instrument_id=instrument.id,
+        return Asset(portfolio=portfolio, instrument_id=instrument.id,
             identifier=instrument.identifier(), type=type, count=0)
 
 def get_or_create_user(request):
@@ -219,25 +220,25 @@ def get_or_create_user(request):
         user.save()
     return user
 
-def get_or_create_portfolio(user, symbol = None):
+def get_or_create_portfolio(user, name = None):
     portfolio = None
-    if symbol: # We can create the portfolio if it does not exist
+    if name: # We can create the portfolio if it does not exist
         try:
-            portfolio = Portfolio.objects.get(symbol=symbol)
+            portfolio = Portfolio.objects.get(name=name)
             if portfolio.user_id != user.id:
-                raise BadRequestException("{} belongs to {}".format(symbol, portfolio.user.name))
+                raise BadRequestException("{} belongs to {}".format(name, portfolio.user.name))
         except Portfolio.DoesNotExist:
-            # Replace the user's current portfolio symbol if it exists
+            # Replace the user's current portfolio name if it exists
             try:
                 portfolio = Portfolio.objects.get(user=user)
             except Portfolio.DoesNotExist:
                 portfolio = Portfolio(user=user)
 
             # Verify that this portfolio name does not match a stock name
-            if Stock.search(symbol=symbol):
-                raise BadRequestException("Can't use this name; a stock named {} already exists".format(symbol))
+            if Stock.search(symbol=name):
+                raise BadRequestException("Can't use this name; a stock named {} already exists".format(name))
 
-            portfolio.symbol = symbol
+            portfolio.name = name
             portfolio.save()
     else:
         try:
@@ -246,32 +247,32 @@ def get_or_create_portfolio(user, symbol = None):
             raise BadRequestException("You don't have a portfolio.")
     return portfolio
 
-def verify_symbol(symbol):
-    symbol = symbol.upper()
-    if re.match('^[A-Z]{1,14}$', symbol):
+def verify_name(name):
+    name = name.upper()
+    if re.match('^[A-Z]{1,14}$', name):
         return True
     else:
         return False
 
 
 def print_portfolio(portfolio):
-    securities = portfolio.security_set.all()
+    assets = portfolio.asset_set.all()
     cash_value = portfolio.cash
-    total_value = sum([s.current_value() for s in securities]) + cash_value
+    total_value = sum([a.current_value() for a in assets]) + cash_value
     response = "{} (${:,.2f}):\n\tCash: ${:,.2f}\n\t{}".format(
-        portfolio.symbol, total_value, cash_value, securities_to_str(securities)
+        portfolio.name, total_value, cash_value, assets_to_str(assets)
     )
     return mattermost_text(response)
 
-def securities_to_str(securities):
-    security_strs = []
-    for s in securities:
-        security_str = s.identifier + ': '
-        if s.count % 1 == 0:
-            security_str += str(round(s.count))
+def assets_to_str(assets):
+    asset_strs = []
+    for a in assets:
+        asset_str = a.identifier + ': '
+        if a.count % 1 == 0:
+            asset_str += str(round(a.count))
         else:
-            security_str += str(s.count)
-        security_strs.append(security_str)
-    if not security_strs:
+            asset_str += str(a.count)
+        asset_strs.append(asset_str)
+    if not asset_strs:
         return "No assets in portfolio"
-    return "\n\t".join(security_strs)
+    return "\n\t".join(asset_strs)

@@ -19,9 +19,9 @@ class Chart():
     max_title_length = 64
 
     # Style for line indicating the opening price
-    initial_price_line_style = {'linestyle': 'dotted', 'color': 'grey'}
+    reference_price_line_style = {'linestyle': 'dotted', 'color': 'grey'}
 
-    # Color indicating whether security is positive or negative since open
+    # Color indicating whether asset is positive or negative since open
     # Color is defined as an RGBA value (red, green, blue, alpha)
     positive_market_color = [0, 0.5, 0, 1] # green
     negative_market_color = [1, 0, 0, 1] # red
@@ -58,11 +58,11 @@ class Chart():
         self.market_hours = chart_data.market_hours
 
         self.series = chart_data.series
-        self.initial_price = chart_data.initial_price
+        self.reference_price = chart_data.reference_price
         self.current_price = chart_data.current_price
         self.updated_at = chart_data.updated_at
 
-        self.title = chart_data.security_name
+        self.title = chart_data.name
 
         self.span = chart_data.span
 
@@ -130,7 +130,7 @@ class Chart():
         self.figure.subplots_adjust(top=self.top_spacing)
 
     def __percent(self, y, pos):
-        y_ratio = y / self.initial_price
+        y_ratio = y / self.reference_price
         p = '{}%'.format(round((y_ratio - 1) * 100, 2))
         return p
 
@@ -175,12 +175,12 @@ class Chart():
                 fontsize=self.current_price_fontsize)
 
         # Show the latest price/change on the graph
-        price_change = self.current_price - self.initial_price
+        price_change = self.current_price - self.reference_price
         if price_change >= 0:
             change_sign = '+'
         else:
             change_sign = '-'
-        percentage_change = round(price_change / self.initial_price * 100, 2)
+        percentage_change = round(price_change / self.reference_price * 100, 2)
 
         if self.current_price < 0.1:
             point_change = round(abs(price_change), 4)
@@ -205,8 +205,8 @@ class Chart():
             **self.after_hours_tint)
 
         # Add a dashed line indicating the opening price
-        self.axis.axhline(self.initial_price,
-            **self.initial_price_line_style)
+        self.axis.axhline(self.reference_price,
+            **self.reference_price_line_style)
 
         market_close_time = self.market_hours.closes_at
         self.axis.axvspan(market_close_time, self.market_hours.extended_closes_at,
@@ -283,7 +283,7 @@ class Chart():
 
     # Return graph color depending on whether price is up or down
     def __get_market_color(self):
-        if self.current_price >= self.initial_price:
+        if self.current_price >= self.reference_price:
             return self.positive_market_color
         else:
             return self.negative_market_color

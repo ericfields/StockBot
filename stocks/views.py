@@ -22,10 +22,10 @@ def get_chart(request, identifiers, span = 'day'):
 
     if portfolio:
         instruments = {}
-        for security in portfolio.security_set.all():
-            instruments[security.instrument()] = security.count
+        for asset in portfolio.asset_set.all():
+            instruments[asset.instrument()] = asset.count
         # Use portfolio name as title
-        chart_name = portfolio.symbol
+        chart_name = portfolio.name
         initial_value = portfolio.cash
         hide_value = True
     else:
@@ -83,11 +83,10 @@ def mattermost_chart(request, identifiers, span):
     if len(identifiers) == 1:
         portfolio = find_portfolio(identifiers[0])
         if portfolio:
-            if len(portfolio.security_set.all()) > 0:
-                # Provide the portfolio symbol as the
-                symbol = identifiers[0]
-                ids = [symbol]
-                chart_name = symbol
+            if len(portfolio.asset_set.all()) > 0:
+                # Provide the portfolio name as the identifier
+                ids = identifiers
+                chart_name = identifiers[0]
             else:
                 # Empty portfolio, do not chart
                 raise BadRequestException("This portfolio is empty")
@@ -148,10 +147,10 @@ def get_chart_img(request, img_name):
 
     if portfolio:
         instruments = {}
-        for security in portfolio.security_set.all():
-            instruments[security.instrument()] = security.count
+        for asset in portfolio.asset_set.all():
+            instruments[asset.instrument()] = asset.count
         # Use portfolio name as title
-        chart_name = portfolio.symbol
+        chart_name = portfolio.name
         initial_value = portfolio.cash
         hide_value = True
     else:
@@ -163,12 +162,19 @@ def get_chart_img(request, img_name):
 
     return chart_img(chart_name, span, instruments, hide_value, initial_value)
 
-def find_portfolio(symbol):
-    if not re.match('^[A-Z]{1,14}$', symbol):
+def chart_img(name, span, instruments, hide_value = False, initial_value = 0):
+    chart_data = RobinhoodChartData(name, span, instruments, initial_value)
+    chart = Chart(chart_data, hide_value)
+    chart_img_data = chart.get_img_data()
+    return HttpResponse(chart_img_data, content_type="image/png")
+
+
+def find_portfolio(name):
+    if not re.match('^[A-Z]{1,14}$', name):
         return None
 
     try:
-        return Portfolio.objects.get(symbol=symbol)
+        return Portfolio.objects.get(name=name)
     except Portfolio.DoesNotExist:
         return None
 

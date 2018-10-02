@@ -11,12 +11,6 @@ import json
 
 DURATION_FORMAT = '^([0-9]+)?\s*(day|week|month|year|all|d|w|m|y|a)s?$'
 
-def chart_img(name, span, instruments, hide_value = False, initial_value = 0):
-    chart_data = RobinhoodChartData(name, span, instruments, initial_value)
-    chart = Chart(chart_data, hide_value)
-    chart_img_data = chart.get_img_data()
-    return HttpResponse(chart_img_data, content_type="image/png")
-
 def str_to_duration(duration_str):
     duration_str = duration_str.strip().lower()
     match = re.match(DURATION_FORMAT, duration_str)

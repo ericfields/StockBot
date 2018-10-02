@@ -12,7 +12,7 @@ class RobinhoodChartData(ChartData):
 
     def __init__(self, name, span, instruments, initial_value = 0):
         current_price = initial_value
-        initial_price = initial_value
+        reference_price = initial_value
 
         stock_instrument_urls = []
         option_instrument_urls = []
@@ -68,11 +68,11 @@ class RobinhoodChartData(ChartData):
 
         for historicals in historicals_list:
             weight = instrument_weights[historicals.instrument]
-            initial_price_set = False
+            reference_price_set = False
 
             if type(historicals) is Stock.Historicals and historicals.previous_close_price:
-                initial_price += historicals.previous_close_price * weight
-                initial_price_set = True
+                reference_price += historicals.previous_close_price * weight
+                reference_price_set = True
             elif type(historicals) is Option.Historicals:
                 # Multiply by 100 to get the value of a single contract
                 weight *= 100
@@ -82,21 +82,21 @@ class RobinhoodChartData(ChartData):
                 if historical.begins_at < start_date:
                     continue
 
-                if not initial_price_set:
+                if not reference_price_set:
                     # Set the first non-zero price as the initial price
                     if historical.open_price > 0:
-                        initial_price += historical.open_price * weight
-                        initial_price_set = True
+                        reference_price += historical.open_price * weight
+                        reference_price_set = True
                     elif historical.close_price > 0:
-                        initial_price += historical.close_price * weight
-                        initial_price_set = True
+                        reference_price += historical.close_price * weight
+                        reference_price_set = True
 
                 if historical.begins_at not in time_price_map:
                     time_price_map[historical.begins_at] = initial_value
 
                 time_price_map[historical.begins_at] += historical.close_price * weight
 
-        super().__init__(name, market_timezone, market_hours, time_price_map, initial_price, current_price, span)
+        super().__init__(name, market_timezone, market_hours, time_price_map, reference_price, current_price, span)
 
     def __get_start_date(self, span, market_hours):
         start_date = datetime.now() - span
@@ -122,8 +122,8 @@ class RobinhoodChartData(ChartData):
     def historical_params(start_date, span):
         now = datetime.now()
 
-        # If the security was listed after our requested span begins,
-        # we reduce the span to when the security was listed
+        # If the asset was listed after our requested span begins,
+        # we reduce the span to when the asset was listed
         if now - span < start_date:
             span = now - start_date
 
