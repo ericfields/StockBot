@@ -113,6 +113,7 @@ def mattermost_chart(request, identifiers, span):
         mattermost_action(update_url, 'day', identifiers=ids, span='day'),
         mattermost_action(update_url, 'week', identifiers=ids, span='week'),
         mattermost_action(update_url, 'month', identifiers=ids, span='month'),
+        mattermost_action(update_url, '3 months', identifiers=ids, span='3month'),
         mattermost_action(update_url, 'year', identifiers=ids, span='year'),
         mattermost_action(update_url, '5 years', identifiers=ids, span='5year'),
     ]
