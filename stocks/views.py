@@ -87,6 +87,8 @@ def mattermost_chart(request, identifiers, span):
     if len(identifiers) == 1:
         portfolio = find_portfolio(identifiers[0])
         if portfolio:
+            if portfolio.cash == 0 and len(portfolio.assets()) == 0:
+                raise BadRequestException("You have nothing in your portfolio to quote.")
             ids = [portfolio.name]
             chart_name = portfolio.name
 
