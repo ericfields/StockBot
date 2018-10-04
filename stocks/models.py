@@ -53,7 +53,7 @@ class Portfolio(models.Model):
 
         for asset in self.assets():
             quote = quote_map[asset.instrument().url]
-            total_value += quote.price() * asset.weight()
+            total_value += quote.price() * asset.count * asset.unit_count()
 
         return total_value
 
@@ -87,11 +87,12 @@ class Portfolio(models.Model):
         for asset in self.assets():
             historicals = historicals_map[asset.instrument().url]
             asset_reference_price, asset_historical_items = self.__process_historicals(asset, historicals, start_date, end_date)
-            reference_price += asset_reference_price * asset.weight()
+            reference_price += asset_reference_price * asset.count
             for h in asset_historical_items:
                 if h.begins_at not in historical_price_map:
                     historical_price_map[h.begins_at] = self.cash
-                historical_price_map[h.begins_at] += h.close_price * asset.weight()
+                historical_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
+                print(h.close_price)
 
         return reference_price, historical_price_map
 
@@ -121,6 +122,7 @@ class Portfolio(models.Model):
                 if reference_price:
                     break
 
+        reference_price *= asset.unit_count()
         return reference_price, historicals.items
 
     def __str__(self):
@@ -166,16 +168,15 @@ class Asset(models.Model):
 
         super().__init__(*args, **kwargs)
 
-    def current_value(self):
-        return self.instrument().current_value() * self.weight()
+    def current_value(self, adjusted_count = None):
+        count = adjusted_count or self.count
+        return self.instrument().current_value() * self.unit_count() * count
 
-    def weight(self):
-        w = self.count
+    def unit_count(self):
         if self.type == self.__class__.OPTION:
-            # The returned value should be that of a single option contract for the stock,
-            # i.e. that of a contract for 100 shares
-            w *= 100
-        return w
+            return 100
+        else:
+            return 1
 
     def instrument(self):
         if not self.instrument_object:

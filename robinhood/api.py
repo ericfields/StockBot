@@ -6,7 +6,6 @@ import re
 import json
 from threading import Lock
 from time import sleep
-from stocks.exceptions import ConfigurationException
 
 from django.core.cache import cache
 
@@ -87,13 +86,16 @@ class ApiCallException(Exception):
         message = "{}: {}".format(code, message)
         super().__init__(message)
 
+class RobinhoodCredentialsException():
+    pass
+
 class ApiInternalErrorException(ApiCallException):
     pass
 
 class ApiForbiddenException(ApiCallException):
     def __init__(self, message = None):
         if not message:
-            message = "Authentication expired or not provided"
+            message = "Robinhood authentication credentials expired or not provided"
         super().__init__(403, message)
 
 class ApiBadRequestException(ApiCallException):
@@ -140,7 +142,7 @@ class ApiResource(ApiModel):
     @staticmethod
     def authenticate():
         if not (ApiResource.username and ApiResource.password):
-            raise ConfigurationException("Attempting to call authenticated endpoint, but no Robinhood credentials are configured for this server.")
+            raise RobinhoodCredentialsException("Attempting to call authenticated endpoint, but no Robinhood credentials are configured for this server.")
 
         # Lock authentication calls so we do not attempt to authenticate multiple times unnecessarily
         ApiResource.auth_lock.acquire()
