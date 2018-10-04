@@ -92,17 +92,11 @@ class Portfolio(models.Model):
                 if h.begins_at not in historical_price_map:
                     historical_price_map[h.begins_at] = self.cash
                 historical_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
-                print(h.close_price)
 
         return reference_price, historical_price_map
 
 
     def __process_historicals(self, asset, historicals, start_date, end_date = datetime.now()):
-        if asset.date_bought and start_date < asset.date_bought:
-            start_date = asset.date_bought
-        if asset.date_sold and end_date > asset.date_sold:
-            end_date = asset.date_sold
-
         # Filter values outside our date ranges
         while historicals.items[0].begins_at < start_date:
             historicals.items.pop(0)
@@ -136,9 +130,6 @@ class Asset(models.Model):
     instrument_id = models.UUIDField(editable=False)
     identifier = models.CharField(max_length=32)
     count = models.FloatField(default=1, validators=[MinValueValidator(0)])
-
-    date_bought = models.DateTimeField(null=True)
-    date_sold = models.DateTimeField(null=True)
 
     instrument_object = None
 
