@@ -132,7 +132,11 @@ class ApiResource(ApiModel):
 
     @classmethod
     def get(cls, resource_id, **params):
-        data = cls.request(cls.resource_url(resource_id), **params)
+        if re.match("^https:\/\/", str(resource_id)):
+            resource_url = resource_id
+        else:
+            resource_url = cls.resource_url(resource_id)
+        data = cls.request(resource_url, **params)
         if data:
             return cls(**data)
         else:
@@ -221,6 +225,8 @@ class ApiResource(ApiModel):
                 val = params[key]
                 if type(val) == list:
                     val = ','.join(val)
+                elif isinstance(val, ApiModel):
+                    val = val.url
                 param_strs.append("{}={}".format(key, val))
 
             resource_url += '?' + '&'.join(param_strs)

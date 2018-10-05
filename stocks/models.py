@@ -38,9 +38,9 @@ class Portfolio(models.Model):
         option_quotes = []
         for asset in self.assets():
             if asset.type == asset.__class__.STOCK:
-                stock_endpoints.append(asset.instrument().url)
+                stock_endpoints.append(asset.instrument_url)
             elif asset.type == asset.__class__.OPTION:
-                option_endpoints.append(asset.instrument().url)
+                option_endpoints.append(asset.instrument_url)
 
         if stock_endpoints:
             stock_quotes = Stock.Quote.search(instruments=stock_endpoints)
@@ -52,7 +52,7 @@ class Portfolio(models.Model):
             quote_map[quote.instrument] = quote
 
         for asset in self.assets():
-            quote = quote_map[asset.instrument().url]
+            quote = quote_map[asset.instrument_url]
             total_value += quote.price() * asset.count * asset.unit_count()
 
         return total_value
@@ -69,9 +69,9 @@ class Portfolio(models.Model):
         option_historicals = []
         for asset in self.assets():
             if asset.type == asset.__class__.STOCK:
-                stock_endpoints.append(asset.instrument().url)
+                stock_endpoints.append(asset.instrument_url)
             elif asset.type == asset.__class__.OPTION:
-                option_endpoints.append(asset.instrument().url)
+                option_endpoints.append(asset.instrument_url)
 
         historical_params = Instrument.historical_params(start_date, end_date)
 
@@ -85,7 +85,7 @@ class Portfolio(models.Model):
             historicals_map[historicals.instrument] = historicals
 
         for asset in self.assets():
-            historicals = historicals_map[asset.instrument().url]
+            historicals = historicals_map[asset.instrument_url]
             asset_reference_price, asset_historical_items = self.__process_historicals(asset, historicals, start_date, end_date)
             reference_price += asset_reference_price * asset.count
             for h in asset_historical_items:
@@ -127,9 +127,13 @@ class Portfolio(models.Model):
 
 class Asset(models.Model):
     portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE)
-    instrument_id = models.UUIDField(editable=False)
+    instrument_id = models.UUIDField(null=True)
+    instrument_url = models.CharField(max_length=160, null=True)
     identifier = models.CharField(max_length=32)
     count = models.FloatField(default=1, validators=[MinValueValidator(0)])
+
+    date_acquired = models.DateTimeField(null=True)
+    date_released = models.DateTimeField(null=True)
 
     instrument_object = None
 
@@ -148,6 +152,7 @@ class Asset(models.Model):
             instrument = kwargs['instrument']
             del kwargs['instrument']
             kwargs['instrument_id'] = instrument.id
+            kwargs['instrument_url'] = instrument.url
             kwargs['identifier'] = instrument.identifier()
             if isinstance(instrument, Stock):
                 kwargs['type'] = self.__class__.STOCK
@@ -161,7 +166,8 @@ class Asset(models.Model):
 
     def current_value(self, adjusted_count = None):
         count = adjusted_count or self.count
-        return self.instrument().current_value() * self.unit_count() * count
+        quote = self.__instrument_class().Quote.get(self.instrument_id)
+        return quote.price() * self.unit_count() * count
 
     def unit_count(self):
         if self.type == self.__class__.OPTION:
@@ -171,13 +177,17 @@ class Asset(models.Model):
 
     def instrument(self):
         if not self.instrument_object:
-            if self.type == self.__class__.STOCK:
-                self.instrument_object = Stock.get(self.instrument_id)
-            elif self.type == self.__class__.OPTION:
-                self.instrument_object = Option.get(self.instrument_id)
-            else:
-                raise Exception("Cannot retrieve instrument object: No type specified for this instrument")
+            self.instrument_object = self.__instrument_class().get(self.instrument_url)
+
         return self.instrument_object
+
+    def __instrument_class(self):
+        if self.type == self.__class__.STOCK:
+            return Stock
+        elif self.type == self.__class__.OPTION:
+            return Option
+        else:
+            raise Exception("Cannot determine instrument class: No type specified for this instrument")
 
     def __str__(self):
         return "{}:{}={}".format(self.portfolio.name, self.identifier, self.count)
