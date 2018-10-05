@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator
 import json
 from robinhood.models import Stock, Option, Instrument
+from async_helper import async_call
 from datetime import datetime
 
 class User(models.Model):
@@ -42,13 +43,17 @@ class Portfolio(models.Model):
             elif asset.type == asset.__class__.OPTION:
                 option_endpoints.append(asset.instrument_url)
 
+        quote_results = []
         if stock_endpoints:
-            stock_quotes = Stock.Quote.search(instruments=stock_endpoints)
+            quote_results.append(async_call(Stock.Quote.search, instruments=stock_endpoints))
         if option_endpoints:
-            option_quotes = Option.Quote.search(instruments=option_endpoints)
+            quote_results.append(async_call(Option.Quote.search, instruments=option_endpoints))
 
+        instrument_quotes = []
+        for result in quote_results:
+            instrument_quotes += result.get()
         quote_map = {}
-        for quote in stock_quotes + option_quotes:
+        for quote in instrument_quotes:
             quote_map[quote.instrument] = quote
 
         for asset in self.assets():
@@ -65,23 +70,26 @@ class Portfolio(models.Model):
         # Make a single query for all historicals for each data type
         stock_endpoints = []
         option_endpoints = []
-        stock_historicals = []
-        option_historicals = []
         for asset in self.assets():
-            if asset.type == asset.__class__.STOCK:
+            if asset.type == Asset.STOCK:
                 stock_endpoints.append(asset.instrument_url)
-            elif asset.type == asset.__class__.OPTION:
+            elif asset.type == Asset.OPTION:
                 option_endpoints.append(asset.instrument_url)
 
         historical_params = Instrument.historical_params(start_date, end_date)
 
+        historicals_results = []
         if stock_endpoints:
-            stock_historicals = Stock.Historicals.search(instruments=stock_endpoints, **historical_params)
+            historicals_results.append(async_call(Stock.Historicals.search, instruments=stock_endpoints, **historical_params))
         if option_endpoints:
-            option_historicals = Option.Historicals.search(instruments=option_endpoints, **historical_params)
+            historicals_results.append(async_call(Option.Historicals.search, instruments=option_endpoints, **historical_params))
+
+        instrument_historicals = []
+        for result in historicals_results:
+            instrument_historicals += result.get()
 
         historicals_map = {}
-        for historicals in stock_historicals + option_historicals:
+        for historicals in instrument_historicals:
             historicals_map[historicals.instrument] = historicals
 
         for asset in self.assets():
