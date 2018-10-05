@@ -1,12 +1,15 @@
 from datetime import datetime, timedelta
 from robinhood.models import Market
 import pandas as pd
+from multiprocessing.pool import ThreadPool
+from queue import Queue
 
 MARKET = 'XNYS'
 
 class ChartData():
     def __init__(self, portfolio, span):
-        current_price = portfolio.current_value()
+        # Get current price quote concurrently in a separate thread to save time
+        current_value_result = ChartData.async_call(portfolio.current_value)
 
         market = Market.get(MARKET)
         market_timezone = market.timezone
@@ -34,6 +37,12 @@ class ChartData():
         self.series = pd.Series(historical_price_map)
 
         self.reference_price = reference_price
-        self.current_price = current_price
+        self.current_price = current_value_result.get()
         self.updated_at = datetime.now()
         self.span = span
+
+    @staticmethod
+    def async_call(method, *args):
+        pool = ThreadPool(processes=1)
+        async_result = pool.apply_async(method, tuple(args))
+        return async_result
