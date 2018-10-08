@@ -106,9 +106,9 @@ class Portfolio(models.Model):
 
     def __process_historicals(self, asset, historicals, start_date, end_date = datetime.now()):
         # Filter values outside our date ranges
-        while historicals.items[0].begins_at < start_date:
+        while historicals.items and historicals.items[0].begins_at < start_date:
             historicals.items.pop(0)
-        while historicals.items[-1].begins_at > end_date:
+        while historicals.items and historicals.items[-1].begins_at > end_date:
             historicals.items.pop()
 
         reference_price = None
