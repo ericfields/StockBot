@@ -45,7 +45,9 @@ class Market(ApiResource):
         'todays_hours': Hours
     }
 
-    def hours(self, date):
+    def hours(self, date = None):
+        if not date:
+            date = datetime.now(self.timezone)
         if isinstance(date, datetime):
             date = date.strftime("%Y-%m-%d")
         endpoint = "/markets/{}/hours/{}".format(self.mic, date)

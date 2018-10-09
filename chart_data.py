@@ -12,7 +12,7 @@ class ChartData():
 
         market = Market.get(MARKET)
         market_timezone = market.timezone
-        market_hours = market.todays_hours()
+        market_hours = market.hours()
 
         if market_hours.is_open:
             end_time = datetime.now()
