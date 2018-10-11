@@ -10,43 +10,36 @@ import re
 
 def get_chart(request, identifiers, span = 'day'):
     span = str_to_duration(span)
+    portfolios = get_portfolios(span, identifiers)
 
-    # Remove duplicates by converting to set (and back)
-    identifiers = list(set(identifiers.split(',')))
+    # Hide the pricing information for a user portfolio
+    hide_value = any([p.pk for p in portfolios])
 
-    portfolio = None
-    is_user_portfolio = False
+    title = ', '.join([p.name for p in portfolios])
 
-    if len(identifiers) == 1:
-        # Check if this is a user portfolio
-        portfolio = find_portfolio(identifiers[0])
-        if portfolio:
-            # Hide the pricing information for a user portfolio
-            is_user_portfolio = True
+    chart = Chart(title, span, hide_value)
+    chart_data_sets = [ChartData(p) for p in portfolios]
+    chart.plot(*chart_data_sets)
 
-    if not portfolio:
-        # Create a portfolio for this quote
-        portfolio = Portfolio()
-        instruments = [find_instrument(i) for i in identifiers]
-        for instrument in instruments:
-            asset = Asset(portfolio=portfolio, instrument=instrument, count=1)
-            portfolio.add_asset(asset)
-        if len(instruments) == 1:
-            portfolio.name = instruments[0].full_name()
-        else:
-            portfolio.name = ', '.join([i.identifier() for i in instruments])
-
-    chart_data = ChartData(portfolio, span)
-    chart = Chart(chart_data, is_user_portfolio)
     chart_img_data = chart.get_img_data()
     return HttpResponse(chart_img_data, content_type="image/png")
+
+@cache_page(60 * 15)
+def get_chart_img(request, img_name):
+    parts = img_name.split("_")
+    if len(parts) < 3:
+        raise BadRequestException("Invalid image: '{}'".format(img_name))
+    identifiers = parts[0]
+    span = parts[-1]
+
+    return get_chart(request, identifiers, span)
 
 def get_mattermost_chart(request):
     body = request.POST.get('text', None)
     if not body:
-        raise BadRequestException("No stocks/options specified")
+        raise BadRequestException("No stocks/options/portfolios specified")
     parts = body.split()
-    identifiers = parts[0].upper().split(',')
+    identifiers = parts[0].upper()
     if len(parts) > 1:
         span = parts[1]
     else:
@@ -54,6 +47,19 @@ def get_mattermost_chart(request):
 
     chart_response = mattermost_chart(request, identifiers, span)
     return HttpResponse(json.dumps(chart_response), content_type="application/json")
+
+def get_mattermost_chart_for_all(request):
+    orig_text = request.POST.get('text', '').strip()
+    new_text = 'EVERYONE'
+    if orig_text:
+        # Verify that text is a duration
+        str_to_duration(orig_text)
+        new_text += ' ' + orig_text
+    # Recreate the request post object to get a mutable copy
+    request.POST = request.POST.copy()
+
+    request.POST['text'] =  new_text
+    return get_mattermost_chart(request)
 
 def update_mattermost_chart(request):
     request_body = json.loads(request.body)
@@ -75,35 +81,14 @@ def update_mattermost_chart(request):
     return HttpResponse(json.dumps(chart_response), content_type="application/json")
 
 def mattermost_chart(request, identifiers, span):
-    # Raise error if span is invalid
-    str_to_duration(span)
+    portfolios = get_portfolios(str_to_duration(span), identifiers)
 
-    # Remove duplicates by converting to set (and back)
-    identifiers = list(set(identifiers))
-
-    ids = None
-
-    # Check if this is a user portfolio
-    if len(identifiers) == 1:
-        portfolio = find_portfolio(identifiers[0])
-        if portfolio:
-            if portfolio.cash == 0 and len(portfolio.assets()) == 0:
-                raise BadRequestException("This portfolio is empty, there's nothing to quote.")
-            ids = [portfolio.name]
-            chart_name = portfolio.name
-
-    if not ids:
-        # Create a portfolio for this quote
-        instruments = [find_instrument(i) for i in identifiers]
-        ids = [i.id for i in instruments]
-        if len(instruments) == 1:
-            chart_name = instruments[0].full_name()
-        else:
-            chart_name = ', '.join([i.identifier() for i in instruments])
+    ids = identifiers.upper()
+    chart_name = ', '.join([p.name for p in portfolios])
 
     # Add a timestamp to the image name to avoid caching future charts
     timestamp = datetime.now().strftime("%H%M%S")
-    img_file_name = "{}_{}_{}".format(','.join(ids), timestamp, span)
+    img_file_name = "{}_{}_{}".format(ids, timestamp, span)
 
     image_url = request.build_absolute_uri(reverse('quote_img', args=[img_file_name]))
     update_url = request.build_absolute_uri(reverse('quote_update'))
@@ -131,41 +116,41 @@ def mattermost_chart(request, identifiers, span):
     }
     return response
 
-@cache_page(60 * 15)
-def get_chart_img(request, img_name):
-    parts = img_name.split("_")
-    if len(parts) < 3:
-        raise BadRequestException("Invalid image: '{}'".format(img_name))
+def get_portfolios(span, identifiers):
+    # Remove duplicates by converting to set (and back)
+    identifiers = list(set(identifiers.upper().split(',')))
+    if len(identifiers) > 10:
+        raise BadRequestException("Sorry, you can only quote up to ten stocks/portfolios at a time.")
 
-    identifiers = parts[0].split(',')
-    span = str_to_duration(parts[-1])
+    if any([i == 'EVERYONE' for i in identifiers]):
+        return Portfolio.objects.all()
 
-    portfolio = None
-    is_user_portfolio = False
+    portfolios = []
+    instruments = []
 
-    if len(identifiers) == 1:
+    for identifier in identifiers:
         # Check if this is a user portfolio
-        portfolio = find_portfolio(identifiers[0])
+        portfolio = find_portfolio(identifier)
         if portfolio:
-            # Hide the pricing information for a user portfolio
-            is_user_portfolio = True
+            portfolios.append(portfolio)
+        else:
+            # No portfolio with this identifier exists; must be an instrument.
+            instruments.append(find_instrument(identifier))
 
-    if not portfolio:
-        # Create a portfolio for this quote
+    # Create a single portfolio for any remaining instruments
+    if instruments:
+        # Create a portfolio for the instruments
         portfolio = Portfolio()
-        instruments = [find_instrument(i) for i in identifiers]
         for instrument in instruments:
             asset = Asset(portfolio=portfolio, instrument=instrument, count=1)
             portfolio.add_asset(asset)
-        if len(instruments) == 1:
+        if len(instruments) == 1 and not portfolios:
             portfolio.name = instruments[0].full_name()
         else:
             portfolio.name = ', '.join([i.identifier() for i in instruments])
+        portfolios.append(portfolio)
 
-    chart_data = ChartData(portfolio, span)
-    chart = Chart(chart_data, is_user_portfolio)
-    chart_img_data = chart.get_img_data()
-    return HttpResponse(chart_img_data, content_type="image/png")
+    return portfolios
 
 def find_portfolio(name):
     if not re.match('^[A-Z]{1,14}$', name):

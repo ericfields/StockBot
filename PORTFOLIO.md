@@ -104,6 +104,8 @@ You can also request a longer date range:
 
 `/quote MYSTUFF 2weeks`
 
-Note that you cannot quote multiple portfolios in one, or portfolios in conjunction with stocks/options. The following will fail and mark "MYSTUFF" as "not found".
+When you quote multiple user portfolios, a different line will be plotted for each portfolio, making it easy for users to compare their performance. Note that only the percentage change of each portfolio will be displayed; no actual dollar amounts are revealed.
 
-`/quote MYSTUFF,AMZN (will fail)`
+`/quote MYSTUFF,YOURSTUFF`
+
+You can quote up to ten portfolios at once.

@@ -247,6 +247,8 @@ def verify_name(name):
     name = name.upper()
     if not re.match('^[A-Z]{1,14}$', name):
         raise BadRequestException("Invalid name: '{}'. Symbol must be an alphabetic string no longer than 14 characters.".format(name))
+    if name == 'EVERYONE':
+        raise BadRequestException("'EVERYONE' is a reserved keyword. You must choose a different name for your portfolio.")
     # Verify that this portfolio name does not match a stock name
     if Stock.search(symbol=name):
         raise BadRequestException("Can't use this name; a stock named {} already exists".format(name))

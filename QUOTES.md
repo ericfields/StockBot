@@ -36,7 +36,7 @@ You can also retrieve a combined quote for multiple stocks at once, using comma-
 
 `/quote AAPL,GOOGL,AMZN [timespan]`
 
-The result is a graph which is a sum of all these stocks' performance.
+The result is a graph which is a sum of all these stocks' performance. StockBot will allow you to quote up to ten stocks at once.
 
 ### Quoting Options
 
@@ -65,6 +65,24 @@ You can request charts with longer timespans, just as you would for a stock char
 You can retrieve a chart for multiple options at once, just as you can with stocks. You can even get a chart containing stocks and options, all in the same command!
 
 `/quote MU,AMD,AAPL220P,SNAP8P12-21`
+
+Up to 10 stocks/options can be quoted at once.
+
+### Quoting Portfolios
+
+You can quote users' portfolios just as you would a stock.
+
+`/quote FOLIO`
+
+When you quote multiple user portfolios, a different line will be plotted for each portfolio, making it easy for users to compare their performance.
+
+`/quote MYSTUFF,YOURSTUFF`
+
+Note that only user portfolios will be displayed on separate lines. Other queried assets, i.e. stocks/options, will be lumped into a single aggregate line.
+
+You can quote up to ten stocks/options/portfolios at once.
+
+`/quote MYSTUFF,YOURSTUFF,AMZN,AAPL`
 
 ## GET endpoints:
 
