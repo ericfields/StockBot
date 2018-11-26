@@ -117,7 +117,6 @@ class Chart():
 
     def plot(self, *chart_data_sets):
         single_set = len(chart_data_sets) == 1
-        legends = []
 
         if not single_set:
             if self.__is_day_chart():
@@ -161,8 +160,6 @@ class Chart():
             if single_set:
                 # Show the price info for the single data set
                 self.__show_price_info(current_price, reference_price)
-            else:
-                legends.append(chart_data.name)
 
             if current_price >= reference_price:
                 line_color = Chart.Color.GREEN
@@ -175,12 +172,14 @@ class Chart():
                 self.start_time = series.index[0]
                 self.axis.set_xlim(left=self.start_time)
 
-            line = self.axis.plot(series,
+            self.axis.plot(series,
                 color=line_color.value,
-                linestyle=linestyle)
+                linestyle=linestyle,
+                label=chart_data.name)
 
-        if legends:
-            self.axis.legend(legends)
+
+        if not single_set:
+            self.axis.legend()
 
     def get_img_data(self):
         figure_img_data = BytesIO()
