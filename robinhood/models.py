@@ -133,6 +133,8 @@ class Stock(Instrument):
 
     class Historicals(ApiResource):
         endpoint_path = "/quotes/historicals"
+        cached = True
+
         attributes = {
             'previous_close_price': float,
             'instrument': str,
@@ -200,6 +202,7 @@ class Option(Instrument):
     class Historicals(ApiResource):
         endpoint_path = "/marketdata/options/historicals"
         authenticated = True
+        cached = True
 
         attributes = {
             'instrument': str

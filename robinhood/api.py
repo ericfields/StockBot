@@ -6,6 +6,7 @@ import re
 import json
 from threading import Lock
 from time import sleep
+import hashlib
 
 from django.core.cache import cache
 
@@ -233,7 +234,7 @@ class ApiResource(ApiModel):
 
         if cls.cached:
             # Check if we have a cache hit first
-            response = cache.get(resource_url)
+            response = cache.get(cls.cache_key(resource_url))
             if response:
                 return response.json()
 
@@ -260,7 +261,7 @@ class ApiResource(ApiModel):
             if response.status_code == 200:
                 if cls.cached:
                     # Cache response. Only successful calls are cached.
-                    cache.set(resource_url, response)
+                    cache.set(cls.cache_key(resource_url), response)
 
                 return response.json()
             elif response.status_code == 400:
@@ -284,6 +285,12 @@ class ApiResource(ApiModel):
         if resource_id:
             resource_url += "{}/".format(resource_id)
         return resource_url
+
+    @classmethod
+    def cache_key(cls, key_str):
+        m = hashlib.md5()
+        m.update(str.encode(key_str))
+        return m.hexdigest()
 
     # Enable iteration through the individual items if present
     def __iter__(self):
