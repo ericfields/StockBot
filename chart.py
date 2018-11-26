@@ -30,24 +30,25 @@ class Chart():
     # Colors for plot lines.
     # Color is defined as an RGBA value (red, green, blue, alpha)
     class Color(Enum):
-        GREEN = [0, 0.5, 0, 1] # green
-        RED = [1, 0, 0, 1] # red
+        GREEN = [0, 0.5, 0, 1]
+        LIGHT_GREEN = [0, 0.85, 0, 1]
+        LIME_GREEN = [0, 1, 0, 1]
+        LIGHT_BLUE = [0, 1, 1, 1]
+        BLUE = [0, 0.5, 1, 1]
 
-    linestyles = OrderedDict(
-        [
-            ('solid',               (0, ())),
-            ('densely dotted',      (0, (1, 1))),
-            ('densely dashed',      (0, (5, 1))),
-            ('densely dashdotted',  (0, (3, 1, 1, 1))),
-            ('loosely dotted',         (0, (1, 3))),
-            ('loosely dashdotdotted', (0, (6, 2, 1, 2))),
-            ('broadly dashed',      (0, (10, 2))),
-            ('dash dot dot',         (0, (5, 1, 1, 1, 1, 1))),
-            ('dash dash dot dot',         (0, (3, 1, 3, 1, 1, 1, 1, 1))),
-            ('broad dash dash dot dot',         (0, (3, 2, 3, 2, 1, 2, 1, 2))),
+        RED = [1, 0, 0, 1]
+        BLOOD_ORANGE = [1, 0.25, 0, 1]
+        ORANGE = [1, 0.5, 0, 1]
+        TANGERINE = [1, 0.75, 0, 1]
+        YELLOW = [1, 1, 0, 1]
 
-        ]
-    )
+        POSITIVE_COLORS = [GREEN, LIGHT_GREEN, LIME_GREEN, LIGHT_BLUE, BLUE]
+        NEGATIVE_COLORS = [RED, BLOOD_ORANGE, ORANGE, TANGERINE, YELLOW]
+
+    class Pattern(Enum):
+        SOLID = (0, ())
+        DASHED = (0, (5, 1))
+        DOTTED = (0, (1, 1))
 
     # Chart margins so that line doesn't touch the Y axis
     margins = 0.1
@@ -109,13 +110,18 @@ class Chart():
         self.axis.set_xlim(right=self.end_time)
         self.__set_time_format()
 
-        self.linestyle_index = 0
-        self.remaining_linestyles = list(self.linestyles.items())
-
         if self.hide_value:
             self.axis.yaxis.set_major_formatter(FuncFormatter(self.__percent))
 
     def plot(self, *chart_data_sets):
+        # Load all the chart data sets asynchronously to save time
+        async_results = []
+        for chart_data in chart_data_sets:
+            async_results.append(async_call(chart_data.load, self.market_hours, self.span))
+        [ar.get() for ar in async_results]
+
+        chart_data_sets = sorted(chart_data_sets, key=self.__sort_by_gain, reverse=True)
+
         single_set = len(chart_data_sets) == 1
 
         if not single_set:
@@ -127,11 +133,8 @@ class Chart():
                 self.hide_value = True
                 self.axis.yaxis.set_major_formatter(FuncFormatter(self.__percent))
 
-        # Load all the chart data sets asynchronously to save time
-        async_results = []
-        for chart_data in chart_data_sets:
-            async_results.append(async_call(chart_data.load, self.market_hours, self.span))
-        [ar.get() for ar in async_results]
+        colors, patterns = self.__get_line_styles(chart_data_sets)
+        style_index = 0
 
         for chart_data in chart_data_sets:
             series = chart_data.series
@@ -143,7 +146,6 @@ class Chart():
                 series.at[self.now] = current_price
             else:
                 series.at[self.end_time] = current_price
-
 
             # Week charts are ugly due to gaps in after-hours/weekend trading activity.
             # Re-index these graphs in a way that hides the gaps (at the cost of time accuracy)
@@ -161,25 +163,73 @@ class Chart():
                 # Show the price info for the single data set
                 self.__show_price_info(current_price, reference_price)
 
-            if current_price >= reference_price:
-                line_color = Chart.Color.GREEN
-            else:
-                line_color = Chart.Color.RED
-            linestyle = self.__next_linestyle()
-
             # See if we need to adjust the date range
             if not self.start_time or self.start_time > series.index[0]:
                 self.start_time = series.index[0]
                 self.axis.set_xlim(left=self.start_time)
 
+            line_color = colors[style_index]
+            line_pattern = patterns[style_index]
+            style_index += 1
+
+            label = "{} ({:0.1f}%)".format(chart_data.name, (current_price - 1) * 100)
+
             self.axis.plot(series,
-                color=line_color.value,
-                linestyle=linestyle,
-                label=chart_data.name)
+                color=line_color,
+                linestyle=line_pattern,
+                label=label)
 
 
         if not single_set:
             self.axis.legend()
+
+    def __sort_by_gain(self, chart_data):
+        return chart_data.current_price / chart_data.reference_price
+
+    def __get_line_styles(self, chart_data_sets):
+        pattern_list = list(p.value for p in Chart.Pattern)
+
+        positive_color_list = Chart.Color.POSITIVE_COLORS.value
+        positive_colors = []
+        positive_patterns = []
+        color_index = 0
+        pattern_index = 0
+
+        for chart_data in chart_data_sets:
+            price_change = chart_data.current_price / chart_data.reference_price
+            if price_change < 1.0:
+                break
+            positive_colors.append(positive_color_list[color_index])
+            positive_patterns.append(pattern_list[pattern_index])
+
+            pattern_index += 1
+            if pattern_index >= len(pattern_list):
+                pattern_index = 0
+                color_index += 1
+
+        negative_color_list = Chart.Color.NEGATIVE_COLORS.value
+        negative_colors = []
+        negative_patterns = []
+        color_index = 0
+        pattern_index = 0
+
+        for chart_data in reversed(chart_data_sets):
+            price_change = chart_data.current_price / chart_data.reference_price
+            if price_change >= 1.0:
+                break
+            negative_colors.append(negative_color_list[color_index])
+            negative_patterns.append(pattern_list[pattern_index])
+
+            pattern_index += 1
+            if pattern_index >= len(pattern_list):
+                pattern_index = 0
+                color_index += 1
+
+        colors = positive_colors + list(reversed(negative_colors))
+        patterns = positive_patterns + list(reversed(negative_patterns))
+        return colors, patterns
+
+
 
     def get_img_data(self):
         figure_img_data = BytesIO()
@@ -189,7 +239,7 @@ class Chart():
         return figure_img_data.getvalue()
 
     def __next_linestyle(self):
-        linestyle = self.remaining_linestyles.pop(0)
+        linestyle = self.remaining_line_patterns.pop(0)
         return linestyle[1]
 
     def __percent(self, y, pos):
