@@ -4,4 +4,5 @@ from queue import Queue
 def async_call(method, *args, **kwargs):
     pool = ThreadPool(processes=1)
     async_result = pool.apply_async(method, tuple(args), kwargs)
+    pool.close()
     return async_result
