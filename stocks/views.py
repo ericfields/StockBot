@@ -1,4 +1,5 @@
 from .utilities import *
+from django.core.cache import cache
 from django.views.decorators.cache import cache_page
 from django.urls import reverse
 from .models import Portfolio, Asset
@@ -24,15 +25,20 @@ def get_chart(request, identifiers, span = 'day'):
     chart_img_data = chart.get_img_data()
     return HttpResponse(chart_img_data, content_type="image/png")
 
-@cache_page(60 * 15)
 def get_chart_img(request, img_name):
+    if cache.has_key(img_name):
+        return cache.get(img_name)
+
     parts = img_name.split("_")
     if len(parts) < 3:
         raise BadRequestException("Invalid image: '{}'".format(img_name))
     identifiers = parts[0]
     span = parts[-1]
 
-    return get_chart(request, identifiers, span)
+    response = get_chart(request, identifiers, span)
+    cache.set(img_name, response)
+    return response
+
 
 def get_mattermost_chart(request):
     body = request.POST.get('text', None)
@@ -90,7 +96,11 @@ def mattermost_chart(request, identifiers, span):
     timestamp = datetime.now().strftime("%H%M%S")
     img_file_name = "{}_{}_{}".format(ids, timestamp, span)
 
-    image_url = request.build_absolute_uri(reverse('quote_img', args=[img_file_name]))
+    # Generate the image and cache it in advance
+    get_chart_img(request, img_file_name)
+
+    image_path = reverse('quote_img', args=[img_file_name])
+    image_url = request.build_absolute_uri(image_path)
     update_url = request.build_absolute_uri(reverse('quote_update'))
 
     actions = [
