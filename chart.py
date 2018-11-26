@@ -140,7 +140,11 @@ class Chart():
             reference_price = chart_data.reference_price
 
             # Add the current price to the graph
-            series.at[self.end_time] = current_price
+            if self.now <= self.market_hours.extended_closes_at:
+                series.at[self.now] = current_price
+            else:
+                series.at[self.end_time] = current_price
+
 
             # Week charts are ugly due to gaps in after-hours/weekend trading activity.
             # Re-index these graphs in a way that hides the gaps (at the cost of time accuracy)
