@@ -57,11 +57,16 @@ class Portfolio(models.Model):
             quote_map[quote.instrument] = quote
 
         for asset in self.assets():
-            quote = quote_map[asset.instrument_url]
+            try:
+                quote = quote_map[asset.instrument_url]
+            except KeyError:
+                # This stock's data is missing from Robinhood. It is likelyi that the company was acquired or delisted.
+                # It should be removed from the user's portfolio.
+                print("WARN: Asset no longer exists in Robinhood: {}".format(asset.identifier))
+                continue
             total_value += quote.price() * asset.count * asset.unit_count()
 
         return total_value
-
 
     def historical_values(self, start_date, end_date):
         historical_price_map = {}
@@ -93,7 +98,13 @@ class Portfolio(models.Model):
             historicals_map[historicals.instrument] = historicals
 
         for asset in self.assets():
-            historicals = historicals_map[asset.instrument_url]
+            try:
+                historicals = historicals_map[asset.instrument_url]
+            except KeyError:
+                # This stock's data is missing from Robinhood. It is likelyi that the company was acquired or delisted.
+                # It should be removed from the user's portfolio.
+                print("WARN: Asset no longer exists in Robinhood: {}".format(asset.identifier))
+                continue
             asset_reference_price, asset_historical_items = self.__process_historicals(asset, historicals, start_date, end_date)
             reference_price += asset_reference_price * asset.count
             for h in asset_historical_items:

@@ -121,7 +121,7 @@ class ApiResource(ApiModel):
         results = []
         data = cls.request(cls.resource_url(), **params)
         while data and 'results' in data:
-            results.extend([cls(**result) for result in data['results']])
+            results.extend([cls(**result) for result in data['results'] if result])
             if 'next' in data and data['next']:
                 # Keep requesting until all data has been returned
                 next_url = re.sub('\/', '/', data['next'])
@@ -231,7 +231,6 @@ class ApiResource(ApiModel):
                 param_strs.append("{}={}".format(key, val))
 
             resource_url += '?' + '&'.join(param_strs)
-
         if cls.cached:
             # Check if we have a cache hit first
             response = cache.get(cls.cache_key(resource_url))
