@@ -105,7 +105,7 @@ class Instrument(ApiResource):
         return params
 
     def __str__(self):
-        return self.simple_name()
+        return self.short_name()
 
 class Stock(Instrument):
     endpoint_path = "/instruments"

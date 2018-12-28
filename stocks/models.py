@@ -186,6 +186,9 @@ class Asset(models.Model):
     def current_value(self, adjusted_count = None):
         count = adjusted_count or self.count
         quote = self.__instrument_class().Quote.get(self.instrument_id)
+        if not quote:
+            # Asset likely no longer exists
+            return 0
         return quote.price() * self.unit_count() * count
 
     def unit_count(self):
