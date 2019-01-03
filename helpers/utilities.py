@@ -1,10 +1,9 @@
 import re
-from .exceptions import BadRequestException, ForbiddenException
-from .stock_handler import StockHandler
-from .option_handler import OptionHandler
+from exceptions import BadRequestException
+from quotes.stock_handler import StockHandler
+from quotes.option_handler import OptionHandler
 from django.http import HttpResponse
 from datetime import timedelta
-from chart import Chart
 from uuid import UUID
 import json
 

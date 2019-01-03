@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('stocks', '0002_rename_security_to_asset'),
+        ('portfolios', '0002_rename_security_to_asset'),
     ]
 
     operations = [

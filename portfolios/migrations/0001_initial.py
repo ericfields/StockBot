@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                 ('identifier', models.CharField(max_length=32)),
                 ('count', models.FloatField(default=1, validators=[django.core.validators.MinValueValidator(0)])),
                 ('type', models.CharField(choices=[('S', 'stock'), ('O', 'option')], max_length=6)),
-                ('portfolio', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='stocks.Portfolio')),
+                ('portfolio', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='portfolios.Portfolio')),
             ],
         ),
         migrations.CreateModel(
@@ -42,6 +42,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='portfolio',
             name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='stocks.User'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='portfolios.User'),
         ),
     ]

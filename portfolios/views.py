@@ -1,8 +1,6 @@
 from .models import User, Portfolio, Asset
-from .stock_handler import StockHandler
-from .option_handler import OptionHandler
-from .utilities import mattermost_text, find_instrument
-from .exceptions import BadRequestException
+from helpers.utilities import mattermost_text, find_instrument
+from exceptions import BadRequestException
 from robinhood.models import Stock, Option
 from datetime import datetime
 import re

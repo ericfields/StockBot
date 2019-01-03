@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 from robinhood.models import Stock, Option
-from stocks.models import Asset
+from portfolios.models import Asset
 
 def set_instrument_urls(apps, schema_editor):
     for asset in Asset.objects.all():
@@ -19,7 +19,7 @@ def set_instrument_urls(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('stocks', '0005_remove_asset_date_fields'),
+        ('portfolios', '0005_remove_asset_date_fields'),
     ]
 
     operations = [

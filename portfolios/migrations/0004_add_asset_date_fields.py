@@ -7,7 +7,7 @@ import django.utils.timezone
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('stocks', '0003_rename_portfolio_symbol_to_name'),
+        ('portfolios', '0003_rename_portfolio_symbol_to_name'),
     ]
 
     operations = [

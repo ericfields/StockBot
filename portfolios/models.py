@@ -2,7 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator
 import json
 from robinhood.models import Stock, Option, Instrument
-from async_helper import async_call
+from helpers.async_helper import async_call
 from datetime import datetime
 
 class User(models.Model):

@@ -1,7 +1,7 @@
 from .handler import Handler
 from robinhood.api import ApiResource
 from robinhood.models import Option
-from .exceptions import BadRequestException, ConfigurationException
+from exceptions import BadRequestException, ConfigurationException
 from .stock_handler import StockHandler
 from dateutil import parser as dateparser
 import re

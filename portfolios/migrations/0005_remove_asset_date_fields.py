@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('stocks', '0004_add_asset_date_fields'),
+        ('portfolios', '0004_add_asset_date_fields'),
     ]
 
     operations = [

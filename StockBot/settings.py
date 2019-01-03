@@ -37,8 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'stocks'
-    #'stocks.apps.StocksConfig'
+    'quotes',
+    'portfolios'
 ]
 
 MIDDLEWARE = [
@@ -50,9 +50,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Exception handling
-    'stocks.mixins.HandleExceptionMiddleware',
+    'quotes.mixins.HandleExceptionMiddleware',
     # Disable CSRF check
-    'stocks.mixins.DisableCSRF'
+    'quotes.mixins.DisableCSRF'
 ]
 
 ROOT_URLCONF = 'StockBot.urls'

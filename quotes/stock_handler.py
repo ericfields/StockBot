@@ -1,5 +1,5 @@
 from .handler import Handler
-from .exceptions import BadRequestException
+from exceptions import BadRequestException
 from robinhood.models import Stock
 from django.views.decorators.cache import cache_page
 

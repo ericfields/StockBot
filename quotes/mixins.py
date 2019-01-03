@@ -1,9 +1,9 @@
 from django.contrib import messages
 from django.utils.deprecation import MiddlewareMixin
-from .exceptions import BadRequestException, ConfigurationException, ForbiddenException
+from exceptions import BadRequestException, ConfigurationException, ForbiddenException
 from robinhood.api import ApiForbiddenException
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
-from .utilities import mattermost_text
+from helpers.utilities import mattermost_text
 import json
 
 class HandleExceptionMiddleware(MiddlewareMixin):
