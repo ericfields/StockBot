@@ -237,37 +237,44 @@ class ApiResource(ApiModel):
             if response:
                 return response.json()
 
-        attempts = 3
+        attempts = 10
 
         headers = {}
 
-        while True:
-            if cls.authenticated:
-                if ApiResource.api_token:
-                    headers['Authorization'] = 'Bearer ' + ApiResource.api_token
-                else:
-                    ApiResource.authenticate()
+        if cls.authenticated:
+            if not ApiResource.api_token:
+                ApiResource.authenticate()
 
+            headers['Authorization'] = 'Bearer ' + ApiResource.api_token
+
+        while True:
             try:
                 response = requests.get(resource_url, headers=headers)
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
+                print("Connection error, retrying")
                 attempts -= 1
                 if attempts <= 0:
-                    raise ApiInternalErrorException(response.status_code, response.text)
+                    raise ApiInternalErrorException(0, "Repeated connection errors when trying to call Robinhood")
                 continue
 
             if response.status_code == 200:
                 if cls.cached:
                     # Cache response. Only successful calls are cached.
                     cache.set(cls.cache_key(resource_url), response)
-
                 return response.json()
             elif response.status_code == 400:
                 raise ApiBadRequestException(response.text)
+            elif response.status_code == 401:
+                if attempts <= 0:
+                    raise ApiInternalErrorException(401, "Unexpected 'Unauthorized' exception: '{}'".format(response.text))
+                attempts -= 1
+                print("Received unexpected 401 error, possibly being throttled. Retrying.")
+                continue
             elif response.status_code == 403:
                 # Authentication may be expired, refresh credentials and retry
                 ApiResource.authenticate()
+                continue
             elif response.status_code == 404:
                 return None
             elif response.status_code > 500:
