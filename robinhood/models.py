@@ -113,6 +113,7 @@ class Stock(Instrument):
 
     class Quote(ApiResource):
         endpoint_path = "/quotes"
+        authenticated = True
         attributes = {
             'symbol': str,
             'last_trade_price': float,
@@ -133,6 +134,7 @@ class Stock(Instrument):
 
     class Historicals(ApiResource):
         endpoint_path = "/quotes/historicals"
+        authenticated = True
         cached = True
 
         attributes = {

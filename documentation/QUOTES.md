@@ -42,8 +42,6 @@ The result is a graph which is a sum of all these stocks' performance. StockBot 
 
 StockBot supports quoting for stock options as well.
 
-**Important**: The Robinhood endpoint for options history is authenticated. You will have to specify the username and password of a valid Robinhood account in the `config.py` file.
-
 To retrieve a chart for an MU $50.5 call expiring at the end of the week (i.e. the earliest expiration possible):
 
 `/quote MU50.5C`

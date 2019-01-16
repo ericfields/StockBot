@@ -35,7 +35,7 @@ sudo python3 manage.py runserver 0.0.0.0:80
 
 ### Robinhood Authentication
 
-If you just want to quote stocks (and not options) you don't need to worry about Robinhood credentials. However, the Robinhood endpoint for historical Options data requires authentication. In order to retrieve quotes for options, you'll need to specify your Robinhood username and password in the `config.py` file.
+In order to retrieve stock quote data, you'll need to specify a valid Robinhood username and password in the `config.py` file.
 
 ## Features
 
