@@ -109,6 +109,7 @@ class ApiThrottledException(ApiCallException):
 
 
 class ApiResource(ApiModel):
+    api_endpoint = ROBINHOOD_ENDPOINT
     endpoint_path = ''
     authenticated = False
     cached = False

@@ -72,6 +72,13 @@ class Instrument(ApiResource):
     def identifier(self):
         raise NotImplementedException(self.__class__, 'identifier')
 
+
+    def instrument_url(self):
+        if self.id:
+            return "{}{}/{}".format(self.api_endpoint, self.endpoint_path, self.id + '/')
+        else:
+            raise Exception("Cannot return instrument URL; this instrument's ID has not yet been loaded")
+
     # The following methods do not need to be re-implemented
 
     def historicals(self, start_date, end_date = None):

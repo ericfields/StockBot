@@ -171,7 +171,7 @@ class Asset(models.Model):
             instrument = kwargs['instrument']
             del kwargs['instrument']
             kwargs['instrument_id'] = instrument.id
-            kwargs['instrument_url'] = instrument.url
+            kwargs['instrument_url'] = instrument.instrument_url()
             kwargs['identifier'] = instrument.identifier()
             if isinstance(instrument, Stock):
                 kwargs['type'] = self.__class__.STOCK
