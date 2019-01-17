@@ -31,3 +31,9 @@ class Handler():
         such as would be returned by `Instrument.identifier`
         """
         raise Exception("Not implemented")
+
+    def valid_identifier(identifier):
+        """Returns whether or not this handler supports the security type specified
+        by the provided identifier string
+        """
+        raise Exception("Not implemented")

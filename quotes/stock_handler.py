@@ -2,6 +2,7 @@ from .handler import Handler
 from exceptions import BadRequestException
 from robinhood.models import Stock
 from django.views.decorators.cache import cache_page
+import re
 
 class StockHandler(Handler):
 
@@ -21,3 +22,6 @@ class StockHandler(Handler):
             return instruments[0]
         else:
             raise BadRequestException("Stock not found: '{}'".format(identifier))
+
+    def valid_identifier(identifier):
+        return re.match(StockHandler.FORMAT, identifier)

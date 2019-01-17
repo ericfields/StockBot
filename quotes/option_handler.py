@@ -52,12 +52,17 @@ class OptionHandler(Handler):
 
         return instrument
 
+    def valid_identifier(identifier):
+        return re.match(OptionHandler.FORMAT, identifier)
+
     def check_authentication():
         if not (ApiResource.username and ApiResource.password):
             raise ConfigurationException("This command requires an authenticated backend API call, but credentials are not configured for this server.")
 
     def parse_option(option_str):
         match = re.match(OptionHandler.FORMAT, option_str)
+        if not match:
+            raise Exception("Not a valid option identifier: {}".format(option_str))
 
         parts = match.groups()
 
