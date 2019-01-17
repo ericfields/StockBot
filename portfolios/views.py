@@ -27,7 +27,7 @@ def portfolio_action(request):
     # Remove empty parts
     parts = list(filter(None, parts))
 
-    command = parts[0].lower()
+    command = parts[0]
     parts.pop(0)
 
     remove_assets = False
@@ -35,8 +35,13 @@ def portfolio_action(request):
 
     user = get_or_create_user(request)
 
-    if command not in ['create', 'rename', 'destroy', 'add', 'remove', 'buy', 'sell']:
-        raise BadRequestException(usage_str)
+    if command.lower() not in ['create', 'rename', 'destroy', 'add', 'remove', 'buy', 'sell']:
+        if re.match('^[A-Z]{1,14}$', command):
+            return display_portfolio(request, command)
+        else:
+            raise BadRequestException(usage_str)
+
+    command = command.lower()
 
     if command == 'create':
         return create_portfolio(user, parts)
@@ -63,13 +68,25 @@ def portfolio_action(request):
 
     return update_portfolio(portfolio, parts, remove_assets=remove_assets, maintain_value=maintain_value)
 
-def display_portfolio(request):
+def display_portfolio(request, portfolio_name=None):
     user = get_or_create_user(request)
+    portfolio = None
 
-    try:
-        portfolio = Portfolio.objects.get(user=user)
-    except Portfolio.DoesNotExist:
-        raise BadRequestException("You don't have a portfolio")
+    if portfolio_name:
+        try:
+            portfolio = Portfolio.objects.get(name=portfolio_name)
+            if portfolio.user != user:
+                raise BadRequestException("You do not own this portfolio.")
+        except Portfolio.DoesNotExist:
+            raise BadRequestException("Portfolio does not exist: '{}'".format(portfolio_name))
+    else:
+        portfolios = Portfolio.objects.filter(user=user)
+        if len(portfolios) == 1:
+            portfolio = portfolios[0]
+        else:
+            return mattermost_text("You have multiple portfolios. Specify the portfolio you want to view.\n\t" +
+                "\n\t".join([p.name for p in portfolios])
+            )
 
     return print_portfolio(portfolio)
 
@@ -114,19 +131,16 @@ def create_portfolio(user, parts):
 
     portfolio = None
 
+    # Verify that this portfolio name isn't already taken by someone else
     try:
-        # Verify portfolio with that name doesn't already exist
         portfolio = Portfolio.objects.get(name=name)
         if portfolio.user_id != user.id:
             raise BadRequestException("{} belongs to {}".format(name, portfolio.user.name))
     except Portfolio.DoesNotExist:
-        # Get the user's current portfolio
-        try:
-            portfolio = Portfolio.objects.get(user=user)
-        except Portfolio.DoesNotExist:
-            pass
+        pass
 
     if portfolio:
+        # Delete the portfolio so that it can be recreated again
         portfolio.delete()
 
     portfolio = Portfolio.objects.create(user=user, name=name)
