@@ -1,5 +1,6 @@
 from .models import User, Portfolio, Asset
 from helpers.utilities import mattermost_text, find_instrument
+from quotes.aggregator import quote_aggregate
 from exceptions import BadRequestException
 from robinhood.models import Stock, Option
 from datetime import datetime
@@ -45,12 +46,14 @@ def portfolio_action(request):
 
     if command == 'create':
         return create_portfolio(user, parts)
-    else:
-        portfolio = get_portfolio(user)
+
+    portfolio_name = None
+    if parts:
+        portfolio_name = parts.pop(0)
+    portfolio = get_portfolio(user, portfolio_name)
 
     if command == 'rename':
         return rename_portfolio(portfolio, parts)
-        # Check for portfolio name
 
     if command == 'destroy':
         return delete_portfolio(portfolio)
@@ -113,11 +116,24 @@ def rename_portfolio(portfolio, parts):
 
     return mattermost_text("Portfolio renamed to {}".format(name))
 
-def get_portfolio(user):
-    try:
-        return Portfolio.objects.get(user=user)
-    except Portfolio.DoesNotExist:
-        raise BadRequestException("You don't have a portfolio.")
+def get_portfolio(user, portfolio_name=None):
+    if portfolio_name:
+        try:
+            portfolio = Portfolio.objects.get(name=portfolio_name)
+            if portfolio.user != user:
+                raise BadRequestException("You do not own this portfolio.")
+        except Portfolio.DoesNotExist:
+            raise BadRequestException("Portfolio does not exist: '{}'".format(portfolio_name))
+    else:
+        portfolios = Portfolio.objects.filter(user=user)
+        if not portfolios:
+            raise BadRequestException("You do not have a portfolio")
+        elif len(portfolios) == 1:
+            portfolio = portfolios[0]
+        else:
+            raise BadRequestException("You have multiple portfolios. Specify the portfolio you want to interact with.\n\t" +
+                "\n\t".join([p.name for p in portfolios])
+            )
 
 def create_portfolio(user, parts):
     usage_str = "Usage: /portfolio create [name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]"
@@ -160,6 +176,7 @@ def update_portfolio(portfolio, asset_defs, **opts):
 
 def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value = False):
     assets_to_save = []
+    instrument_counts = []
     for ad in asset_defs:
         # Check for cash value
         if re.match('^\$[0-9]+(\.[0-9]{2})?$', ad):
@@ -193,13 +210,19 @@ def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value 
             count = 1
 
         instrument = find_instrument(identifier)
+        instrument_counts.append((instrument,count))
 
+    instruments = [ic[0] for ic in instrument_counts]
+    quotes = quote_aggregate(*instruments)
+
+    for instrument_count in instrument_counts:
+        instrument, count = instrument_count
         if remove_assets:
-            value_sold = sell_assets(portfolio, instrument, count)
+            value_sold = sell_assets(portfolio, instrument, count, quotes)
             if maintain_value:
                 portfolio.cash += value_sold
         else:
-            value_bought = buy_assets(portfolio, instrument, count)
+            value_bought = buy_assets(portfolio, instrument, count, quotes)
             if maintain_value:
                 if portfolio.cash < value_bought:
                     raise BadRequestException("You do not have enough cash in your portfolio to buy these assets.")
@@ -208,7 +231,7 @@ def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value 
     portfolio.save()
 
 
-def buy_assets(portfolio, instrument, count):
+def buy_assets(portfolio, instrument, count, quotes):
     try:
         asset = portfolio.asset_set.get(instrument_id=instrument.id)
         asset.count += count
@@ -217,9 +240,9 @@ def buy_assets(portfolio, instrument, count):
 
     asset.save()
 
-    return asset.current_value(count)
+    return asset_value(quotes, asset, count)
 
-def sell_assets(portfolio, instrument, count):
+def sell_assets(portfolio, instrument, count, quotes):
     try:
         asset = portfolio.asset_set.get(instrument_id=instrument.id)
     except Asset.DoesNotExist:
@@ -231,7 +254,7 @@ def sell_assets(portfolio, instrument, count):
         ))
 
     asset.count -= count
-    value_sold = asset.current_value(count)
+    value_sold = asset_value(quotes, asset, count)
     if asset.count == 0:
         asset.delete()
     else:
@@ -268,13 +291,20 @@ def verify_name(name):
 
 
 def print_portfolio(portfolio):
+    quotes = quote_aggregate(portfolio)
+
     assets = portfolio.asset_set.all()
     cash_value = portfolio.cash
-    total_value = sum([a.current_value() for a in assets]) + cash_value
+    total_value = sum([asset_value(quotes, a) for a in assets]) + cash_value
     response = "{} (${:,.2f}):\n\tCash: ${:,.2f}\n\t{}".format(
         portfolio.name, total_value, cash_value, assets_to_str(assets)
     )
     return mattermost_text(response)
+
+def asset_value(quotes, asset, count=None):
+    if not count:
+        count = asset.count
+    return quotes[str(asset.instrument_id)].price() * count
 
 def assets_to_str(assets):
     asset_strs = []

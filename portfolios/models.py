@@ -141,9 +141,6 @@ class Portfolio(models.Model):
     def __str__(self):
         return self.name
 
-    def value(self):
-        return self.cash + sum([a.current_value() for a in self.asset_set.all()])
-
 class Asset(models.Model):
     portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE)
     instrument_id = models.UUIDField(null=True)
@@ -182,14 +179,6 @@ class Asset(models.Model):
             self.instrument_object = instrument
 
         super().__init__(*args, **kwargs)
-
-    def current_value(self, adjusted_count = None):
-        count = adjusted_count or self.count
-        quote = self.__instrument_class().Quote.get(self.instrument_id)
-        if not quote:
-            # Asset likely no longer exists
-            return 0
-        return quote.price() * self.unit_count() * count
 
     def unit_count(self):
         if self.type == self.__class__.OPTION:
