@@ -103,6 +103,10 @@ class ApiBadRequestException(ApiCallException):
     def __init__(self, message):
         super().__init__(400, message)
 
+class ApiUnauthorizedException(ApiCallException):
+    def __init__(self, message):
+        super().__init__(401, message)
+
 class ApiThrottledException(ApiCallException):
     def __init__(self, message):
         super().__init__(429, message)
@@ -267,11 +271,10 @@ class ApiResource(ApiModel):
             elif response.status_code == 400:
                 raise ApiBadRequestException(response.text)
             elif response.status_code == 401:
-                if attempts <= 0:
-                    raise ApiInternalErrorException(401, "Unexpected 'Unauthorized' exception: '{}'".format(response.text))
-                attempts -= 1
-                print("Received unexpected 401 error, possibly being throttled. Retrying.")
-                continue
+                if cls.authenticated:
+                    raise ApiUnauthorizedException("Authentication credentials were not accepted")
+                else:
+                    raise ApiUnauthorizedException("This API endpoint requires authentication: {}".format(cls.endpoint_path))
             elif response.status_code == 403:
                 # Authentication may be expired, refresh credentials and retry
                 ApiResource.authenticate()
