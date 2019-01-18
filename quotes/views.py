@@ -154,20 +154,23 @@ def get_portfolios(span, identifiers):
     if len(identifiers) > 10:
         raise BadRequestException("Sorry, you can only quote up to ten stocks/portfolios at a time.")
 
-    if any([i == 'EVERYONE' for i in identifiers]):
-        return Portfolio.objects.all()
-
     portfolios = []
     instruments = []
 
     for identifier in identifiers:
         # Check if this is a user portfolio
-        portfolio = find_portfolio(identifier)
-        if portfolio:
-            portfolios.append(portfolio)
+        if identifier == 'EVERYONE':
+            for portfolio in Portfolio.objects.all():
+                if portfolio not in portfolios:
+                    portfolios.append(portfolio)
         else:
-            # No portfolio with this identifier exists; must be an instrument.
-            instruments.append(find_instrument(identifier))
+            if identifier not in [p.name for p in portfolios]:
+                portfolio = find_portfolio(identifier)
+                if portfolio:
+                    portfolios.append(portfolio)
+                else:
+                    # No portfolio with this identifier exists; must be an instrument.
+                    instruments.append(find_instrument(identifier))
 
     # Create a single portfolio for any remaining instruments
     if instruments:
