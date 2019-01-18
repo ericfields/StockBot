@@ -26,7 +26,8 @@ def quote_aggregate(*securities):
 
     quote_map = {}
     for quote in quotes:
-        instrument = instruments[quote.instrument]
+        if quote.instrument in instruments:
+            instrument = instruments[quote.instrument]
         quote_map[instrument.id] = quote
 
     return quote_map
@@ -51,7 +52,8 @@ def historicals_aggregate(start_date, end_date, *securities):
 
     historicals_map = {}
     for historical in historicals:
-        instrument = instruments[historical.instrument]
+        if historical.instrument in instruments:
+            instrument = instruments[historical.instrument]
         historicals_map[instrument.id] = historical
 
     return historicals_map
@@ -73,7 +75,7 @@ def extract_instruments(*securities):
 
         security_type = type(security)
         if security_type == Portfolio:
-            for asset in security.asset_set.all():
+            for asset in security.assets():
                 instruments.append(instrument_from_asset(asset))
         elif security_type == Asset:
             instruments.append(instrument_from_asset(security))

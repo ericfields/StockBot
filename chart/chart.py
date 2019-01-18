@@ -7,12 +7,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dateutil import parser as dateparser
 from io import BytesIO
-from robinhood.models import Market
 from enum import Enum
 from collections import OrderedDict
-from helpers.async_helper import async_call
 
-MARKET = 'XNYS'
 
 class Chart():
     # Size of the overall chart
@@ -77,18 +74,12 @@ class Chart():
     # Additional spacing at top to accommodate title, price, etc.
     top_spacing = 0.8
 
-    def __init__(self, title, span, hide_value = False):
-        market = Market.get(MARKET)
-        self.market_timezone = market.timezone
+    def __init__(self, title, span, market_timezone, market_hours, hide_value = False):
+        self.market_timezone = market_timezone
+        self.market_hours = market_hours
 
         self.now = datetime.now()
         self.now_with_tz = datetime.now(self.market_timezone)
-
-        market_hours = market.hours()
-        if not (market_hours.is_open and self.now >= market_hours.extended_opens_at):
-            # Get the most recent open market hours, and change the start/end time accordingly
-            market_hours = market_hours.previous_open_hours()
-        self.market_hours = market_hours
 
         self.span = span
         self.hide_value = hide_value
@@ -114,12 +105,6 @@ class Chart():
             self.axis.yaxis.set_major_formatter(FuncFormatter(self.__percent))
 
     def plot(self, *chart_data_sets):
-        # Load all the chart data sets asynchronously to save time
-        async_results = []
-        for chart_data in chart_data_sets:
-            async_results.append(async_call(chart_data.load, self.market_hours, self.span))
-        [ar.get() for ar in async_results]
-
         chart_data_sets = sorted(chart_data_sets, key=self.__sort_by_gain, reverse=True)
 
         single_set = len(chart_data_sets) == 1
@@ -154,6 +139,8 @@ class Chart():
 
             if self.hide_value:
                 # Do not show the actual dollar values. Only show as percentages.
+                if reference_price == 0:
+                    reference_price = 1.0
                 for t in series.index:
                     series.at[t] = series.at[t] / reference_price
                 current_price /= reference_price
@@ -183,7 +170,21 @@ class Chart():
         if not single_set:
             self.axis.legend()
 
+    def __get_start_and_end_time(self):
+        now = datetime.now()
+
+        end_time = self.market_hours.extended_closes_at
+        if now < end_time:
+            end_time = now
+        if self.span <= timedelta(days=1):
+            start_time = self.market_hours.extended_opens_at
+        else:
+            start_time = end_time - self.span
+        return start_time, end_time
+
     def __sort_by_gain(self, chart_data):
+        if chart_data.reference_price == 0:
+            return 1
         return chart_data.current_price / chart_data.reference_price
 
     def __get_line_styles(self, chart_data_sets):
@@ -196,7 +197,10 @@ class Chart():
         pattern_index = 0
 
         for chart_data in chart_data_sets:
-            price_change = chart_data.current_price / chart_data.reference_price
+            if chart_data.reference_price == 0:
+                price_change = 1.0
+            else:
+                price_change = chart_data.current_price / chart_data.reference_price
             if price_change < 1.0:
                 break
             positive_colors.append(positive_color_list[color_index])
@@ -214,7 +218,10 @@ class Chart():
         pattern_index = 0
 
         for chart_data in reversed(chart_data_sets):
-            price_change = chart_data.current_price / chart_data.reference_price
+            if chart_data.reference_price == 0:
+                price_change = 1.0
+            else:
+                price_change = chart_data.current_price / chart_data.reference_price
             if price_change >= 1.0:
                 break
             negative_colors.append(negative_color_list[color_index])
@@ -289,7 +296,10 @@ class Chart():
             change_sign = '+'
         else:
             change_sign = '-'
-        percentage_change = round(price_change / reference_price * 100, 2)
+        if reference_price == 0:
+            percentage_change = 0
+        else:
+            percentage_change = round(price_change / reference_price * 100, 2)
 
         if current_price < 0.1:
             point_change = round(abs(price_change), 4)

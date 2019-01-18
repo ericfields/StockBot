@@ -4,14 +4,17 @@ from django.urls import reverse
 from django.http import HttpResponse
 
 from portfolios.models import Portfolio, Asset
-from robinhood.models import Stock
+from robinhood.models import Stock, Market
 from helpers.utilities import str_to_duration, mattermost_text, find_instrument
 from chart.chart import Chart
 from chart.chart_data import ChartData
+from quotes.aggregator import quote_aggregate, historicals_aggregate
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import re
+
+MARKET = 'XNYS'
 
 def get_chart(request, identifiers, span = 'day'):
     span = str_to_duration(span)
@@ -22,8 +25,23 @@ def get_chart(request, identifiers, span = 'day'):
 
     title = ', '.join([p.name for p in portfolios])
 
-    chart = Chart(title, span, hide_value)
     chart_data_sets = [ChartData(p) for p in portfolios]
+    portfolios = [cd.portfolio for cd in chart_data_sets]
+    quotes = quote_aggregate(*portfolios)
+
+    market = Market.get(MARKET)
+    market_hours = market.hours()
+    if not (market_hours.is_open and datetime.now() >= market_hours.extended_opens_at):
+        # Get the most recent open market hours, and change the start/end time accordingly
+        market_hours = market_hours.previous_open_hours()
+
+    start_time, end_time = get_start_and_end_time(market_hours, span)
+    historicals = historicals_aggregate(start_time, end_time, *portfolios)
+
+    for chart_data in chart_data_sets:
+        chart_data.load(quotes, historicals, start_time, end_time)
+
+    chart = Chart(title, span, market.timezone, market_hours, hide_value)
     chart.plot(*chart_data_sets)
 
     chart_img_data = chart.get_img_data()
@@ -196,3 +214,15 @@ def mattermost_action(url, name, **params):
             }
         }
     }
+
+def get_start_and_end_time(market_hours, span):
+    now = datetime.now()
+
+    end_time = market_hours.extended_closes_at
+    if now < end_time:
+        end_time = now
+    if span <= timedelta(days=1):
+        start_time = market_hours.extended_opens_at
+    else:
+        start_time = end_time - span
+    return start_time, end_time

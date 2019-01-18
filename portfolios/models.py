@@ -1,8 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 import json
-from robinhood.models import Stock, Option, Instrument
-from helpers.async_helper import async_call
+from robinhood.models import Stock, Option
 from datetime import datetime
 
 class User(models.Model):
@@ -29,114 +28,6 @@ class Portfolio(models.Model):
             return self.asset_set.all()
         else:
             return self.tmp_assets
-
-    def current_value(self):
-        total_value = self.cash
-
-        stock_endpoints = []
-        option_endpoints = []
-        stock_quotes = []
-        option_quotes = []
-        for asset in self.assets():
-            if asset.type == asset.__class__.STOCK:
-                stock_endpoints.append(asset.instrument_url)
-            elif asset.type == asset.__class__.OPTION:
-                option_endpoints.append(asset.instrument_url)
-
-        quote_results = []
-        if stock_endpoints:
-            quote_results.append(async_call(Stock.Quote.search, instruments=stock_endpoints))
-        if option_endpoints:
-            quote_results.append(async_call(Option.Quote.search, instruments=option_endpoints))
-
-        instrument_quotes = []
-        for result in quote_results:
-            instrument_quotes += result.get()
-        quote_map = {}
-        for quote in instrument_quotes:
-            quote_map[quote.instrument] = quote
-
-        for asset in self.assets():
-            try:
-                quote = quote_map[asset.instrument_url]
-            except KeyError:
-                # This stock's data is missing from Robinhood. It is likelyi that the company was acquired or delisted.
-                # It should be removed from the user's portfolio.
-                print("WARN: Asset no longer exists in Robinhood: {}".format(asset.identifier))
-                continue
-            total_value += quote.price() * asset.count * asset.unit_count()
-
-        return total_value
-
-    def historical_values(self, start_date, end_date):
-        historical_price_map = {}
-        reference_price = self.cash
-
-        # Make a single query for all historicals for each data type
-        stock_endpoints = []
-        option_endpoints = []
-        for asset in self.assets():
-            if asset.type == Asset.STOCK:
-                stock_endpoints.append(asset.instrument_url)
-            elif asset.type == Asset.OPTION:
-                option_endpoints.append(asset.instrument_url)
-
-        historical_params = Instrument.historical_params(start_date, end_date)
-
-        historicals_results = []
-        if stock_endpoints:
-            historicals_results.append(async_call(Stock.Historicals.search, instruments=stock_endpoints, **historical_params))
-        if option_endpoints:
-            historicals_results.append(async_call(Option.Historicals.search, instruments=option_endpoints, **historical_params))
-
-        instrument_historicals = []
-        for result in historicals_results:
-            instrument_historicals += result.get()
-
-        historicals_map = {}
-        for historicals in instrument_historicals:
-            historicals_map[historicals.instrument] = historicals
-
-        for asset in self.assets():
-            try:
-                historicals = historicals_map[asset.instrument_url]
-            except KeyError:
-                # This stock's data is missing from Robinhood. It is likelyi that the company was acquired or delisted.
-                # It should be removed from the user's portfolio.
-                print("WARN: Asset no longer exists in Robinhood: {}".format(asset.identifier))
-                continue
-            asset_reference_price, asset_historical_items = self.__process_historicals(asset, historicals, start_date, end_date)
-            reference_price += asset_reference_price * asset.count
-            for h in asset_historical_items:
-                if h.begins_at not in historical_price_map:
-                    historical_price_map[h.begins_at] = self.cash
-                historical_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
-
-        return reference_price, historical_price_map
-
-
-    def __process_historicals(self, asset, historicals, start_date, end_date = datetime.now()):
-        # Filter values outside our date ranges
-        while historicals.items and historicals.items[0].begins_at < start_date:
-            historicals.items.pop(0)
-        while historicals.items and historicals.items[-1].begins_at > end_date:
-            historicals.items.pop()
-
-        reference_price = None
-        if asset.type == asset.__class__.STOCK and historicals.previous_close_price:
-            reference_price = historicals.previous_close_price
-        else:
-            # Use the first non-zero price value
-            for h in historicals.items:
-                if h.open_price > 0:
-                    reference_price = h.open_price
-                elif h.close_price > 0:
-                    reference_price = h.close_price
-                if reference_price:
-                    break
-
-        reference_price *= asset.unit_count()
-        return reference_price, historicals.items
 
     def __str__(self):
         return self.name

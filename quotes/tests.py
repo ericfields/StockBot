@@ -14,13 +14,22 @@ class QuotesTestCase(TestCase):
         [portfolio.asset_set.create(instrument=i) for i in instruments]
         self.client = Client()
 
-    def test_portfolio_quote(self):
-        pass
-        #response = self.client.get("/quotes/view/{}".format('QUOTESA'))
-        #self.assertEquals(200, response.status_code)
-
     def test_stock_quote(self):
         response = self.client.get('/quotes/view/AMZN')
+        self.assertEquals(200, response.status_code)
+
+    def test_portfolio_quote(self):
+        response = self.client.post('/portfolios/', {'user_id': 'test', 'user_name': 'test', 'text': 'create TEST AAPL:1 AMZN:2'})
+        self.assertContains(response, 'TEST')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
+        response = self.client.get('/quotes/view/TEST')
+        self.assertEquals(200, response.status_code)
+
+    def test_empty_portfolio_quote(self):
+        response = self.client.post('/portfolios/', {'user_id': 'test', 'user_name': 'test', 'text': 'create EMPTY'})
+        self.assertContains(response, 'EMPTY')
+        response = self.client.get('/quotes/view/EMPTY')
         self.assertEquals(200, response.status_code)
 
 class AggregatorTestCase(TestCase):
