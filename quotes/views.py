@@ -172,17 +172,17 @@ def get_portfolios(span, identifiers):
                     # No portfolio with this identifier exists; must be an instrument.
                     instruments.append(find_instrument(identifier))
 
-    # Create a single portfolio for any remaining instruments
-    if instruments:
-        # Create a portfolio for the instruments
-        portfolio = Portfolio()
-        for instrument in instruments:
-            asset = Asset(portfolio=portfolio, instrument=instrument, count=1)
-            portfolio.add_asset(asset)
+    # Wrap each of the remaining instruments in its own portfolio
+    for instrument in instruments:
+        # Use the full name if this instrument is the only thing being quoted
+        # Otherwise use its identifier name
         if len(instruments) == 1 and not portfolios:
-            portfolio.name = instruments[0].full_name()
+            portfolio_name = instrument.full_name()
         else:
-            portfolio.name = ', '.join([i.identifier() for i in instruments])
+            portfolio_name = instrument.identifier()
+        portfolio = Portfolio(name=portfolio_name)
+        asset = Asset(portfolio=portfolio, instrument=instrument, count=1)
+        portfolio.add_asset(asset)
         portfolios.append(portfolio)
 
     return portfolios

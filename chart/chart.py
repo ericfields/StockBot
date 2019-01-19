@@ -153,6 +153,10 @@ class Chart():
             # See if we need to adjust the date range
             if not self.start_time or self.start_time > series.index[0]:
                 self.start_time = series.index[0]
+                if self.start_time == self.end_time:
+                    # Use slight offset to avoid warning3
+                    # from same left and right graph limits
+                    self.start_time = self.end_time - timedelta(0.001)
                 self.axis.set_xlim(left=self.start_time)
 
             line_color = colors[style_index]

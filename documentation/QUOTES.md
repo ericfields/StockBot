@@ -31,12 +31,15 @@ You can retrieve time ranges with a granularity of days, weeks, months, or years
 
 The default is the day chart if no timespan is provided.
 
-
 You can also retrieve a combined quote for multiple stocks at once, using comma-separated values (no spaces).
 
 `/quote AAPL,GOOGL,AMZN [timespan]`
 
-The result is a graph which is a sum of all these stocks' performance. StockBot will allow you to quote up to ten stocks at once.
+When quoting multiple stocks at once, each stock will be displayed on its own line.
+For readability purposes, only the percentage change of each stock will be shown,
+and the dollar values will be hidden.
+
+StockBot will allow you to quote up to ten stocks at once.
 
 ### Quoting Options
 
@@ -72,13 +75,16 @@ You can quote users' portfolios just as you would a stock.
 
 `/quote FOLIO`
 
+When quoting portfolios, the actual dollar value of the portfolio is hidden, and
+only the percentage change of the portfolio is displayed. This allows users
+to maintain their portfolio assets accurately without having to worry about other
+users knowing how much money they actually have.
+
 When you quote multiple user portfolios, a different line will be plotted for each portfolio, making it easy for users to compare their performance.
 
 `/quote MYSTUFF,YOURSTUFF`
 
-Note that only user portfolios will be displayed on separate lines. Other queried assets, i.e. stocks/options, will be lumped into a single aggregate line.
-
-You can quote up to ten stocks/options/portfolios at once.
+You can also quote portfolios alongside stocks and options. You can quote up to ten stocks/options/portfolios at once.
 
 `/quote MYSTUFF,YOURSTUFF,AMZN,AAPL`
 
