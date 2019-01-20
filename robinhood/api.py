@@ -186,17 +186,17 @@ class ApiResource(ApiModel):
             attempts = 3
 
             while True:
+                attempts -= 1
                 try:
                     response = requests.post(auth_url, headers={'Content-Type': 'application/json'}, data=json.dumps(data))
                     if response.status_code < 500:
                         break
                 except requests.exceptions.ConnectionError as e:
-                    # Occasional error
+                    # Occasional error, retry if possible
                     if attempts <= 0:
-                        sleep(1)
                         raise e
-
-                attempts -= 1
+                    else:
+                        sleep(1)
 
             if response.status_code != 200:
                 if response.status_code == 429:
@@ -242,8 +242,6 @@ class ApiResource(ApiModel):
             if response:
                 return response.json()
 
-        attempts = 10
-
         headers = {}
 
         if cls.authenticated:
@@ -252,14 +250,18 @@ class ApiResource(ApiModel):
 
             headers['Authorization'] = 'Bearer ' + ApiResource.api_token
 
+        attempts = 3
+
         while True:
+            attempts -= 1
+
             try:
                 response = requests.get(resource_url, headers=headers)
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
-                print("Connection error, retrying")
-                attempts -= 1
-                if attempts <= 0:
+                if attempts > 0:
+                    print("Warning: Connection error, retrying")
+                else:
                     raise ApiInternalErrorException(0, "Repeated connection errors when trying to call Robinhood")
                 continue
 
@@ -272,18 +274,25 @@ class ApiResource(ApiModel):
                 raise ApiBadRequestException(response.text)
             elif response.status_code == 401:
                 if cls.authenticated:
-                    raise ApiUnauthorizedException("Authentication credentials were not accepted")
+                    if attempts > 0:
+                        # Credentials may have expired, try reauthenticating
+                        ApiResource.authenticate()
+                        continue
+                    else:
+                        raise ApiUnauthorizedException("Authentication credentials were not accepted")
                 else:
                     raise ApiUnauthorizedException("This API endpoint requires authentication: {}".format(cls.endpoint_path))
             elif response.status_code == 403:
-                # Authentication may be expired, refresh credentials and retry
-                ApiResource.authenticate()
-                continue
+                if attempts > 0:
+                    # Credentials may have expired, try reauthenticating
+                    ApiResource.authenticate()
+                    continue
+                else:
+                    raise ApiForbiddenException("Not authorized to access this resource: {}".format(resource_url))
             elif response.status_code == 404:
                 return None
             elif response.status_code > 500:
-                # Internal server error, retry
-                attempts -= 1
+                # Internal server error, retry if possible
                 if attempts <= 0:
                     raise ApiInternalErrorException(response.status_code, response.text)
             else:
