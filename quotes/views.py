@@ -8,7 +8,7 @@ from robinhood.models import Stock, Market
 from helpers.utilities import str_to_duration, mattermost_text, find_instrument
 from chart.chart import Chart
 from chart.chart_data import ChartData
-from quotes.aggregator import quote_aggregate, historicals_aggregate
+from quotes.aggregator import quote_and_historicals_aggregate
 
 from datetime import datetime, timedelta
 import json
@@ -27,7 +27,6 @@ def get_chart(request, identifiers, span = 'day'):
 
     chart_data_sets = [ChartData(p) for p in portfolios]
     portfolios = [cd.portfolio for cd in chart_data_sets]
-    quotes = quote_aggregate(*portfolios)
 
     market = Market.get(MARKET)
     market_hours = market.hours()
@@ -36,7 +35,9 @@ def get_chart(request, identifiers, span = 'day'):
         market_hours = market_hours.previous_open_hours()
 
     start_time, end_time = get_start_and_end_time(market_hours, span)
-    historicals = historicals_aggregate(start_time, end_time, *portfolios)
+
+    # Fetch quotes and historicals
+    quotes, historicals = quote_and_historicals_aggregate(start_time, end_time, *portfolios)
 
     for chart_data in chart_data_sets:
         chart_data.load(quotes, historicals, start_time, end_time)

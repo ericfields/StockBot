@@ -2,14 +2,24 @@ from portfolios.models import Portfolio, Asset
 from robinhood.models import Stock, Option, Instrument
 from quotes.stock_handler import StockHandler
 from quotes.option_handler import OptionHandler
-from helpers.async_helper import async_call
+from multiprocessing.pool import ThreadPool
 import re
 
 """Extracts instruments from multiple stocks/options/portfolios and combines them into
 a single query to send to Robinhood API for quote/historical data.
 """
-def quote_aggregate(*securities):
+
+pool = ThreadPool(processes=6)
+
+def quote_and_historicals_aggregate(start_time, end_time, *securities):
     instruments = extract_instruments(*securities)
+    quote_call = async_call(quote_aggregate, *instruments)
+    historicals_call = async_call(historicals_aggregate, start_time, end_time, *instruments)
+    return quote_call.get(), historicals_call.get()
+
+def quote_aggregate(*securities):
+    instrument_list = extract_instruments(*securities)
+    instruments = instrument_url_map(*instrument_list)
     stock_urls, option_urls = get_instrument_urls(instruments)
 
     stock_results = option_results = None
@@ -33,7 +43,8 @@ def quote_aggregate(*securities):
     return quote_map
 
 def historicals_aggregate(start_date, end_date, *securities):
-    instruments = extract_instruments(*securities)
+    instrument_list = extract_instruments(*securities)
+    instruments = instrument_url_map(*instrument_list)
     stock_urls, option_urls = get_instrument_urls(instruments)
 
     historical_params = Instrument.historical_params(start_date, end_date)
@@ -92,6 +103,9 @@ def extract_instruments(*securities):
         else:
             raise Exception("Invalid security type: {}".format(security_type))
 
+    return instruments
+
+def instrument_url_map(*instruments):
     return {i.instrument_url():i for i in instruments}
 
 def instrument_from_asset(asset):
@@ -102,3 +116,6 @@ def instrument_from_asset(asset):
     else:
         raise Exception("Invalid asset type: {}".format(asset.type))
     return instrument
+
+def async_call(method, *args, **kwargs):
+    return pool.apply_async(method, tuple(args), kwargs)
