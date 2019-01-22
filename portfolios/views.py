@@ -14,13 +14,13 @@ def portfolio(request):
 
 def portfolio_action(request):
     usage_str = """Usage:
-/portfolio create [name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio rename [name]
-/portfolio add [$cash] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio remove [$cash] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio buy [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio sell [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio destroy
+/portfolio create [portfolio_name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio rename [portfolio_name]
+/portfolio add [portfolio_name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio remove [portfolio_name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio buy [portfolio_name] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio sell [portfolio_name] [stock1:count, [stock2: count, [option1: count...]]]
+/portfolio destroy [portfolio_name]
 """
 
     body = request.POST.get('text', None)
@@ -47,10 +47,13 @@ def portfolio_action(request):
     if command == 'create':
         return create_portfolio(user, parts)
 
-    portfolio_name = None
-    if parts:
-        portfolio_name = parts.pop(0)
-    portfolio = get_portfolio(user, portfolio_name)
+    if parts and re.match('^[A-Z]{1,14}$', parts[0]):
+        portfolio_name = parts[0]
+    else:
+        portfolio_name = None
+    portfolio = find_portfolio(user, portfolio_name)
+    if portfolio_name and portfolio.name == portfolio_name:
+        parts.pop(0)
 
     if command == 'rename':
         return rename_portfolio(portfolio, parts)
@@ -116,24 +119,32 @@ def rename_portfolio(portfolio, parts):
 
     return mattermost_text("Portfolio renamed to {}".format(name))
 
-def get_portfolio(user, portfolio_name=None):
+def find_portfolio(user, portfolio_name=None):
     if portfolio_name:
         try:
             portfolio = Portfolio.objects.get(name=portfolio_name)
             if portfolio.user != user:
                 raise BadRequestException("You do not own this portfolio.")
+            return portfolio
         except Portfolio.DoesNotExist:
-            raise BadRequestException("Portfolio does not exist: '{}'".format(portfolio_name))
+            # Provided field may not actually be a portfolio name, but an instrument.
+            # If so, simply use the user's one and only portfolio if they have one.
+            # If not, raise an error.
+            try:
+                find_instrument(portfolio_name)
+            except BadRequestException:
+                raise BadRequestException("No such portfolio or stock/option exists: '{}'".format(portfolio_name))
+
+    portfolios = Portfolio.objects.filter(user=user)
+    if not portfolios:
+        raise BadRequestException("You do not have a portfolio")
+    elif len(portfolios) == 1:
+        portfolio = portfolios[0]
     else:
-        portfolios = Portfolio.objects.filter(user=user)
-        if not portfolios:
-            raise BadRequestException("You do not have a portfolio")
-        elif len(portfolios) == 1:
-            portfolio = portfolios[0]
-        else:
-            raise BadRequestException("You have multiple portfolios. Specify the portfolio you want to interact with.\n\t" +
-                "\n\t".join([p.name for p in portfolios])
-            )
+        raise BadRequestException("You have multiple portfolios. Specify the portfolio you want to interact with.\n\t" +
+            "\n\t".join([p.name for p in portfolios])
+        )
+    return portfolio
 
 def create_portfolio(user, parts):
     usage_str = "Usage: /portfolio create [name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]"

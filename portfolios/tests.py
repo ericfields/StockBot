@@ -60,14 +60,39 @@ class PortfolioViewsTestCase(TestCase):
         response = self.display_portfolio('alice', bobs)
         self.assertContains(response, 'You do not own this portfolio')
 
+    def test_portfolio_add(self):
+        name, response = self.create_portfolio('bob')
+        self.assertContains(response, name)
+
+        response = self.portfolio_add('bob', 'AAPL AMZN:2')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
+
+        response = self.portfolio_add('bob', 'MSFT', name)
+        self.assertContains(response, name)
+        self.assertContains(response, 'MSFT')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
+
+
+
     def create_portfolio(self, user, contents = None):
         portfolio_name = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
-        cmd = "create {} {}".format(portfolio_name, contents)
+        cmd = "create " + portfolio_name
+        if contents:
+            cmd += " " + contents
         response = self.portfolio_call(user, cmd)
         return portfolio_name, response
 
     def display_portfolio(self, user, portfolio_name = ''):
         cmd = portfolio_name
+        return self.portfolio_call(user, cmd)
+
+    def portfolio_add(self, user, contents, portfolio_name=None):
+        cmd = "add "
+        if portfolio_name:
+            cmd += portfolio_name + " "
+        cmd += contents
         return self.portfolio_call(user, cmd)
 
     def portfolio_call(self, user, command):
