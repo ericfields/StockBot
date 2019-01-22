@@ -9,8 +9,6 @@ import re
 a single query to send to Robinhood API for quote/historical data.
 """
 
-pool = ThreadPool(processes=6)
-
 def quote_and_historicals_aggregate(start_time, end_time, *securities):
     instruments = extract_instruments(*securities)
     quote_call = async_call(quote_aggregate, *instruments)
@@ -118,4 +116,5 @@ def instrument_from_asset(asset):
     return instrument
 
 def async_call(method, *args, **kwargs):
+    pool = ThreadPool(processes=1)
     return pool.apply_async(method, tuple(args), kwargs)
