@@ -1,5 +1,5 @@
 from django.test import TestCase, Client
-from quotes.aggregator import quote_aggregate, historicals_aggregate
+from quotes.aggregator import quote_aggregate
 from robinhood.models import Instrument
 from portfolios.models import Asset, Portfolio
 from quotes.stock_handler import StockHandler
@@ -75,13 +75,6 @@ class AggregatorTestCase(TestCase):
         quotes = quote_aggregate(*self.instruments, *self.instruments)
         self.assertEquals(len(quotes), len(self.instruments))
         self.check_all_present(quotes)
-
-    def test_historicals_with_identifiers(self):
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
-        historicals = historicals_aggregate(start_date, end_date, *self.identifiers)
-        self.assertEquals(len(historicals), len(self.identifiers))
-        self.check_all_present(historicals)
 
     def check_all_present(self, results):
         self.assertEquals(len(results), len(self.instruments))

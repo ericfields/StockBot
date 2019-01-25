@@ -9,71 +9,74 @@ import re
 a single query to send to Robinhood API for quote/historical data.
 """
 
+pool = ThreadPool(processes=10)
+
 def quote_and_historicals_aggregate(start_time, end_time, *securities):
     instruments = extract_instruments(*securities)
-    quote_call = async_call(quote_aggregate, *instruments)
-    historicals_call = async_call(historicals_aggregate, start_time, end_time, *instruments)
-    return quote_call.get(), historicals_call.get()
 
-def quote_aggregate(*securities):
-    instrument_list = extract_instruments(*securities)
-    instruments = instrument_url_map(*instrument_list)
-    stock_urls, option_urls = get_instrument_urls(instruments)
+    historical_params = Instrument.historical_params(start_time, end_time)
 
-    stock_results = option_results = None
-    if stock_urls:
-        stock_results = async_call(Stock.Quote.search, instruments=stock_urls)
-    if option_urls:
-        option_results = async_call(Option.Quote.search, instruments=option_urls)
+    quotes, historicals = fetch_data(instruments, historical_params)
 
-    quotes = []
-    if stock_results:
-        quotes += stock_results.get()
-    if option_results:
-        quotes += option_results.get()
+    instrument_map = {i.instrument_url():i for i in instruments}
 
     quote_map = {}
-    for quote in quotes:
-        if quote.instrument in instruments:
-            instrument = instruments[quote.instrument]
-        quote_map[instrument.id] = quote
+    historicals_map = {}
+    for q in quotes:
+        if q.instrument in instrument_map:
+            instrument = instrument_map[q.instrument]
+        quote_map[instrument.id] = q
+    for h in historicals:
+        if h.instrument in instrument_map:
+            instrument = instrument_map[h.instrument]
+        historicals_map[instrument.id] = h
+
+    return quote_map, historicals_map
+
+def quote_aggregate(*securities):
+    instruments = extract_instruments(*securities)
+
+    quotes = fetch_data(instruments)
+
+    instrument_map = {i.instrument_url():i for i in instruments}
+
+    quote_map = {}
+    for q in quotes:
+        if q.instrument in instrument_map:
+            instrument = instrument_map[q.instrument]
+        quote_map[instrument.id] = q
 
     return quote_map
 
-def historicals_aggregate(start_date, end_date, *securities):
-    instrument_list = extract_instruments(*securities)
-    instruments = instrument_url_map(*instrument_list)
+def fetch_data(instruments, historical_params=None):
     stock_urls, option_urls = get_instrument_urls(instruments)
 
-    historical_params = Instrument.historical_params(start_date, end_date)
-
-    stock_results = option_results = None
+    quote_result_set = []
+    historicals_result_set = []
     if stock_urls:
-        stock_results = async_call(Stock.Historicals.search, instruments=stock_urls, **historical_params)
+        quote_result_set.append(async_call(Stock.Quote.search, instruments=stock_urls))
+        if historical_params:
+            historicals_result_set.append(async_call(Stock.Historicals.search, instruments=stock_urls, **historical_params))
     if option_urls:
-        option_results = async_call(Option.Historicals.search, instruments=option_urls, **historical_params)
+        quote_result_set.append(async_call(Option.Quote.search, instruments=option_urls))
+        if historical_params:
+            historicals_result_set.append(async_call(Option.Historicals.search, instruments=option_urls, **historical_params))
 
-    historicals = []
-    if stock_results:
-        historicals += stock_results.get()
-    if option_results:
-        historicals += option_results.get()
+    quotes = [q for quotes in quote_result_set for q in quotes.get()]
+    if not historical_params:
+        return quotes
 
-    historicals_map = {}
-    for historical in historicals:
-        if historical.instrument in instruments:
-            instrument = instruments[historical.instrument]
-        historicals_map[instrument.id] = historical
+    historicals = [h for historicals in historicals_result_set for h in historicals.get()]
 
-    return historicals_map
+    return quotes, historicals
 
 def get_instrument_urls(instruments):
     stock_urls, option_urls = set(), set()
-    for instrument_url, instrument in instruments.items():
+    for instrument in instruments:
         if type(instrument) == Stock:
-            stock_urls.add(instrument_url)
+            stock_urls.add(instrument.instrument_url())
         elif type(instrument) == Option:
-            option_urls.add(instrument_url)
+            option_urls.add(instrument.instrument_url())
 
     return list(stock_urls), list(option_urls)
 
@@ -103,9 +106,6 @@ def extract_instruments(*securities):
 
     return instruments
 
-def instrument_url_map(*instruments):
-    return {i.instrument_url():i for i in instruments}
-
 def instrument_from_asset(asset):
     if asset.type == Asset.STOCK:
         instrument = Stock(id=asset.instrument_id)
@@ -116,5 +116,4 @@ def instrument_from_asset(asset):
     return instrument
 
 def async_call(method, *args, **kwargs):
-    pool = ThreadPool(processes=1)
     return pool.apply_async(method, tuple(args), kwargs)
