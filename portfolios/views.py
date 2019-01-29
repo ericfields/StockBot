@@ -87,7 +87,11 @@ def display_portfolio(request, portfolio_name=None):
             raise BadRequestException("Portfolio does not exist: '{}'".format(portfolio_name))
     else:
         portfolios = Portfolio.objects.filter(user=user)
-        if len(portfolios) == 1:
+        if not portfolios:
+            return mattermost_text("You do not have any portfolios.\n\t" +
+                "\n\t".join([p.name for p in portfolios])
+            )
+        elif len(portfolios) == 1:
             portfolio = portfolios[0]
         else:
             return mattermost_text("You have multiple portfolios. Specify the portfolio you want to view.\n\t" +
