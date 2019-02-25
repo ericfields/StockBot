@@ -25,8 +25,7 @@ class OptionHandler(Handler):
         instruments = Option.search(
             chain_id=stock_instrument.tradable_chain_id,
             strike_price=price,
-            type=type,
-            state='active'
+            type=type
         )
 
         instrument = None

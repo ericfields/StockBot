@@ -286,7 +286,7 @@ class Chart():
                 **self.reference_price_line_style)
 
         if not self.hide_value:
-            if current_price < 0.1:
+            if current_price < 0.1 and current_price > 0:
                 self.current_price_str = '${:,.4f}'.format(current_price)
             else:
                 self.current_price_str = '${:,.2f}'.format(current_price)
