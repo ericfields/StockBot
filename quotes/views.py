@@ -113,6 +113,9 @@ def mattermost_chart(request, identifiers, span):
     portfolios = get_portfolios(str_to_duration(span), identifiers)
 
     ids = identifiers.upper()
+    # Replace slashes with hyphens for safety
+    # Slashes could be present in date-formatted string
+    ids = ids.replace('/', '-')
     chart_name = ', '.join([p.name for p in portfolios])
 
     # Add a timestamp to the image name to avoid caching future charts
