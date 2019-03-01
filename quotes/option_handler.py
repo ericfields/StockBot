@@ -21,12 +21,17 @@ class OptionHandler(Handler):
         symbol, price, type, expiration = OptionHandler.parse_option(identifier)
 
         stock_instrument = StockHandler.search_for_instrument(symbol)
+        params = {
+            'chain_id': stock_instrument.tradable_chain_id,
+            'strike_price': price,
+            'type': type
+        }
+        if not expiration:
+            # No expiration date provided, need to ensure that only active
+            # options are returned.
+            params['state'] = 'active'
 
-        instruments = Option.search(
-            chain_id=stock_instrument.tradable_chain_id,
-            strike_price=price,
-            type=type
-        )
+        instruments = Option.search(**params)
 
         instrument = None
 

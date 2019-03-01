@@ -254,7 +254,6 @@ class ApiResource(ApiModel):
 
         while True:
             attempts -= 1
-
             try:
                 response = requests.get(resource_url, headers=headers)
             except requests.exceptions.ConnectionError:
@@ -271,7 +270,8 @@ class ApiResource(ApiModel):
                     cache.set(cls.cache_key(resource_url), response)
                 return response.json()
             elif response.status_code == 400:
-                raise ApiBadRequestException(response.text)
+                message = "{} (request URL: {})".format(response.text, resource_url)
+                raise ApiBadRequestException(message)
             elif response.status_code == 401:
                 if cls.authenticated:
                     if attempts > 0:
