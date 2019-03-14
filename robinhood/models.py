@@ -260,3 +260,24 @@ class Option(Instrument):
         price = round(self.strike_price, 1)
         symbol = self.chain_symbol
         return "{}{}{}@{}".format(symbol, price, type, expiration)
+
+class NewsItem(ApiModel):
+    attributes = {
+        'url': str,
+        'source': str,
+        'summary': str,
+        'title': str,
+        'author': str,
+        'instrument': Instrument,
+        'num_clicks': int,
+        'preview_image_url': str,
+        'published_at': datetime,
+        'updated_at': datetime,
+        'relay_url': str
+    }
+
+class News(ApiResource):
+    endpoint_path = "/midlands/news"
+
+    class Item(NewsItem):
+        list_key = 'results'

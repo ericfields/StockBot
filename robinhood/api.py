@@ -55,12 +55,6 @@ class ApiModel():
         attr_type = self.attributes[attr]
         if attr_type == None:
             return val
-        elif attr_type == str:
-            return str(val)
-        elif attr_type == float:
-            return float(val)
-        elif attr_type == val:
-            return int()
         elif attr_type == datetime:
             date = dateparser.parse(val).astimezone(pytz.utc).replace(tzinfo=None)
             return date
