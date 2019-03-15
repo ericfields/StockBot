@@ -264,6 +264,7 @@ class Option(Instrument):
 class NewsItem(ApiModel):
     attributes = {
         'url': str,
+        'api_source': str,
         'source': str,
         'summary': str,
         'title': str,

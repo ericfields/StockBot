@@ -34,8 +34,13 @@ def str_to_duration(duration_str):
 
     return duration
 
-def mattermost_text(text):
-    return HttpResponse(json.dumps({"text": text}), content_type="application/json")
+def mattermost_text(text, icon_url=None, in_channel=False):
+    params = {'text': text}
+    if in_channel:
+        params['response_type'] = 'in_channel'
+    if icon_url:
+        params['icon_url'] = icon_url
+    return HttpResponse(json.dumps(params), content_type='application/json')
 
 QUOTE_HANDLERS = [StockHandler, OptionHandler]
 
@@ -64,3 +69,16 @@ def find_instrument(identifier):
 
 def valid_format_example_str():
     return "\n\t".join(["{}: {}".format(h.TYPE, h.EXAMPLE) for h in QUOTE_HANDLERS])
+
+def html_tag(type, body, **attrs):
+    html_str = "<{}".format(type)
+    if attrs:
+        attr_str = ""
+        for attr in attrs:
+            attr_str += "{}=\"{}\" ".format(attr, attrs[attr])
+        html_str += " {}".format(attr_str)
+    if body:
+        html_str += ">{}</{}>".format(body, type)
+    else:
+        html_str += "/>"
+    return html_str

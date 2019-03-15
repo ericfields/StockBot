@@ -63,3 +63,21 @@ You can create a custom stock portfolio (just for tracking, not actual buying an
 ```
 
 See [PORTFOLIO.md](PORTFOLIO.md) for more info on tracking and quoting portfolios.
+
+### News
+
+StockBot can show you the latest news about a stock, using the `/news` endpoint.
+
+To display an excerpt from the latest, most viewed news article regarding FB:
+
+```
+/news FB
+```
+
+Not enough info? If you wanted to see the three most relevant news item for FB:
+
+```
+/news FB 3
+```
+
+You can request up to ten news items at once for a stock.
