@@ -30,6 +30,8 @@ def get_mattermost_news(request):
                 "You can optionally specify the number of news items to view as well, e.g. /news FB 3")
         if max_news_items > 10:
             raise BadRequestException("You can only request up to 10 news items.")
+        elif max_news_items < 1:
+            raise BadRequestException("You must request at least 1 news item.")
     else:
         max_news_items = 1
 
