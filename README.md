@@ -51,7 +51,7 @@ If you provide a Robinhood username/password, you can also quote options! For ex
 
 `/quote AAPL250C@1-1-2019`
 
-See [QUOTES.md](QUOTES.md) for more info and options for on quoting stocks and options.
+See [QUOTES.md](documentation/QUOTES.md) for more info and options for on quoting stocks and options.
 
 ### Portfolios
 
@@ -62,7 +62,7 @@ You can create a custom stock portfolio (just for tracking, not actual buying an
 /quote MYSTUFF
 ```
 
-See [PORTFOLIO.md](PORTFOLIO.md) for more info on tracking and quoting portfolios.
+See [PORTFOLIO.md](documentation/PORTFOLIO.md) for more info on tracking and quoting portfolios.
 
 ### News
 
