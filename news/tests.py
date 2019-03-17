@@ -7,9 +7,8 @@ class NewsTestCase(TestCase):
 
     def test_news(self):
         response = self.client.get('/news/FB')
-        self.assertContains(response, 'Facebook')
+        self.assertEqual(response.status_code, 200)
 
     def test_mattermost_news(self):
         response = self.client.post('/news/', {'text': 'FB'})
         self.assertTrue('text' in response.json())
-        self.assertContains(response, 'Facebook')

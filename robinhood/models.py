@@ -274,7 +274,8 @@ class NewsItem(ApiModel):
         'preview_image_url': str,
         'published_at': datetime,
         'updated_at': datetime,
-        'relay_url': str
+        'relay_url': str,
+        'related_instruments': list
     }
 
 class News(ApiResource):

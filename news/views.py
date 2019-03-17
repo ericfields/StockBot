@@ -1,19 +1,29 @@
 from django.shortcuts import render
 from django.http import HttpResponse
-from robinhood.models import News
+from robinhood.models import Stock, News
 from helpers.utilities import html_tag, mattermost_text
 from exceptions import BadRequestException
+import re
+
+# Some sources tend to provide more relevant results than others
+PREFERRED_SOURCES = {
+    'bloomberg',
+    'reuters',
+    'fortune'
+}
 
 # Sources which tend to write speculation rather than actual news
-SPECULATIVE_SOURCES = [
+SPECULATIVE_SOURCES = {
     'seeking_alpha',
     'investorplace',
-    'Investopedia',
-    'The Motley Fool'
-]
+    'investopedia',
+    'the motley fool',
+    'benzinga',
+    'simply wall st'
+}
 
 def get_news(request, identifier):
-    news_items = top_news_items(identifier, 3)
+    news_items = top_news_items(identifier)[:3]
     return HttpResponse(news_items_as_html(news_items))
 
 def get_mattermost_news(request):
@@ -35,25 +45,70 @@ def get_mattermost_news(request):
     else:
         max_news_items = 1
 
-    news_items = top_news_items(identifier, max_news_items)
+    news_items = top_news_items(identifier)[:max_news_items]
     return mattermost_text(news_items_as_markdown(news_items), in_channel=True)
 
-def top_news_items(identifier, max_news_items):
-    news = News.get(identifier)
-    if not news.items:
+def top_news_items(identifier):
+    stocks = Stock.search(symbol=identifier)
+    if not stocks:
+        raise BadRequestException("Stock not found: '{}'".format(identifier))
+    stock = stocks[0]
+    news = News.get(stock.symbol)
+
+    items = news.items
+    if not items:
         raise BadRequestException("No news found for stock ticker '{}'.".format(identifier))
 
-    items = filter_sources(SPECULATIVE_SOURCES, news.items)
-    if not items:
-        raise BadRequestException("No real news available for {} (all speculative).".format(identifier))
-
+    # Sort initially by popularity, i.e. number of clicks
     items.sort(key=lambda i: i.num_clicks, reverse=True)
-    top_items = items[:max_news_items]
-    return top_items
 
-def filter_sources(sources, news_items, whitelist=False):
-    filter_lambda = lambda i: (i.api_source in sources or i.source in sources) == whitelist
-    return list(filter(filter_lambda, news_items))
+    filters = []
+
+    # Deprioritize news sources which don't mention the stock in the title
+    filters.append(lambda i: stock.symbol in i.title
+        or stock.simple_name.lower() in i.title.lower())
+
+    # Prioritize preferred news sources
+    filters.append(lambda i: source_matches(PREFERRED_SOURCES, i))
+
+    # Deprioritize news items from "speculative" sources
+    filters.append(lambda i: not source_matches(SPECULATIVE_SOURCES, i))
+
+    # Prioritize articles related to only one or two stocks,
+    # as these tend to be more relevant to the requested stock
+    filters.append(lambda i: len(i.related_instruments) <= 2)
+
+    # Deprioritize listicles, e.g. "3 reasons why...", "Top 10...", etc.
+    number_regex = r"^(Top )?([0-9]+|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+    filters.append(lambda i: not re.match(number_regex, i.title, re.IGNORECASE))
+
+    # Reorder list using priority filters
+    items = prioritize_items(items, *filters)
+
+    return items
+
+def source_matches(sources, news_item):
+    sources = set(map(lambda s: s.lower(), sources))
+
+    fields = [news_item.api_source, news_item.source, news_item.title]
+    fields = list(map(lambda s: s.lower(), fields))
+
+    matching = any([s for s in sources if any([f for f in fields if s in f])])
+    return matching
+
+# Move filtered items to the end of the list
+# Priority of each filter is based on the order it is provided in,
+# i.e. filters are processed in reverse order
+def prioritize_items(items, *filters):
+    sorted_items = []
+    for f in reversed(filters):
+        sorted_items = list(filter(f, items))
+        for i in items:
+            if i not in sorted_items:
+                sorted_items.append(i)
+        items = sorted_items
+
+    return sorted_items
 
 def news_items_as_html(news_items):
     html_items = []
