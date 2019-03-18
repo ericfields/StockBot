@@ -73,6 +73,10 @@ def top_news_items(identifier):
     filters.append(lambda i: stock.symbol in i.summary
         or stock.simple_name.lower() in i.summary.lower())
 
+    # Deprioritize listicles, e.g. "3 reasons why...", "Top 10...", etc.
+    number_regex = r"^(Top )?([0-9]+|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+    filters.append(lambda i: not re.match(number_regex, i.title, re.IGNORECASE))
+
     # Prioritize articles related to only one or two stocks,
     # as these tend to be more relevant to the requested stock.
     filters.append(lambda i: len(i.related_instruments) == 1)
@@ -81,10 +85,6 @@ def top_news_items(identifier):
     # Prioritize preferred news sources, and deprioritize "speculative" sources
     filters.append(lambda i: source_matches(PREFERRED_SOURCES, i))
     filters.append(lambda i: not source_matches(SPECULATIVE_SOURCES, i))
-
-    # Deprioritize listicles, e.g. "3 reasons why...", "Top 10...", etc.
-    number_regex = r"^(Top )?([0-9]+|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
-    filters.append(lambda i: not re.match(number_regex, i.title, re.IGNORECASE))
 
     # Reorder list using priority filters
     items = prioritize_items(items, *filters)
