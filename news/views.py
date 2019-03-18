@@ -66,16 +66,16 @@ def top_news_items(identifier):
     # The priority of the filters mirrors the order they are defined in here.
     filters = []
 
-    # First priority: news items which mention the stock in the title
+    # Severely penalize "listicles", e.g. "3 reasons why...", "Top 10...", etc.
+    number_regex = r"^(Top )?([0-9]+|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+    filters.append(lambda i: not re.match(number_regex, i.title, re.IGNORECASE))
+
+    # Prioritize news items which mention the stock in the title
     filters.append(lambda i: stock.symbol in i.title
         or stock.simple_name.lower() in i.title.lower())
     # Next, news items which mention the stock in the summary
     filters.append(lambda i: stock.symbol in i.summary
         or stock.simple_name.lower() in i.summary.lower())
-
-    # Deprioritize listicles, e.g. "3 reasons why...", "Top 10...", etc.
-    number_regex = r"^(Top )?([0-9]+|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
-    filters.append(lambda i: not re.match(number_regex, i.title, re.IGNORECASE))
 
     # Prioritize articles related to only one or two stocks,
     # as these tend to be more relevant to the requested stock.
