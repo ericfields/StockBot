@@ -62,21 +62,25 @@ def top_news_items(identifier):
     # Sort initially by popularity, i.e. number of clicks
     items.sort(key=lambda i: i.num_clicks, reverse=True)
 
+    # Filters are defined here for attempting to sort news items by relevance.
+    # The priority of the filters mirrors the order they are defined in here.
     filters = []
 
-    # Deprioritize news sources which don't mention the stock in the title
+    # First priority: news items which mention the stock in the title
     filters.append(lambda i: stock.symbol in i.title
         or stock.simple_name.lower() in i.title.lower())
-
-    # Prioritize preferred news sources
-    filters.append(lambda i: source_matches(PREFERRED_SOURCES, i))
-
-    # Deprioritize news items from "speculative" sources
-    filters.append(lambda i: not source_matches(SPECULATIVE_SOURCES, i))
+    # Next, news items which mention the stock in the summary
+    filters.append(lambda i: stock.symbol in i.summary
+        or stock.simple_name.lower() in i.summary.lower())
 
     # Prioritize articles related to only one or two stocks,
-    # as these tend to be more relevant to the requested stock
-    filters.append(lambda i: len(i.related_instruments) <= 2)
+    # as these tend to be more relevant to the requested stock.
+    filters.append(lambda i: len(i.related_instruments) == 1)
+    filters.append(lambda i: len(i.related_instruments) == 2)
+
+    # Prioritize preferred news sources, and deprioritize "speculative" sources
+    filters.append(lambda i: source_matches(PREFERRED_SOURCES, i))
+    filters.append(lambda i: not source_matches(SPECULATIVE_SOURCES, i))
 
     # Deprioritize listicles, e.g. "3 reasons why...", "Top 10...", etc.
     number_regex = r"^(Top )?([0-9]+|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
