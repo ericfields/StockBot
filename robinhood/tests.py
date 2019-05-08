@@ -1,5 +1,5 @@
 from django.test import TestCase
-from .models import *
+from robinhood.models import *
 
 class RobinhoodTestCase(TestCase):
     def test_stock(self):
