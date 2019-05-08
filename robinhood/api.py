@@ -16,7 +16,8 @@ class ApiModel():
     attributes = {}
     username = None
     password = None
-    client_id = None
+    oauth_client_id = None
+    device_token = None
     api_token = None
     refresh_token = None
 
@@ -161,19 +162,27 @@ class ApiResource(ApiModel):
                 return True
 
             auth_url = ROBINHOOD_ENDPOINT + "/oauth2/token/"
+
+            auth_request_headers = {
+                'Content-Type': 'application/json',
+                'X-Robinhood-API-Version': '1.265.0'
+            }
+
             if ApiResource.refresh_token:
                 data = {
                     'grant_type': 'refresh_token',
                     'refresh_token': ApiResource.refresh_token,
-                    'client_id': ApiResource.client_id
+                    'client_id': ApiResource.oauth_client_id,
+                    'device_token': ApiResource.device_token
                 }
             else:
-                data={
+                data = {
                     'grant_type': 'password',
                     'expires_in': 86400,
                     'username': ApiResource.username,
                     'password': ApiResource.password,
-                    'client_id': ApiResource.client_id,
+                    'client_id': ApiResource.oauth_client_id,
+                    'device_token': ApiResource.device_token,
                     'scope': 'internal'
                 }
 
@@ -182,7 +191,7 @@ class ApiResource(ApiModel):
             while True:
                 attempts -= 1
                 try:
-                    response = requests.post(auth_url, headers={'Content-Type': 'application/json'}, data=json.dumps(data))
+                    response = requests.post(auth_url, headers=auth_request_headers, data=json.dumps(data))
                     if response.status_code < 500:
                         break
                 except requests.exceptions.ConnectionError as e:
@@ -198,7 +207,9 @@ class ApiResource(ApiModel):
                 elif response.status_code == 403:
                     error = ApiForbiddenException("Authentication is required for this endpoint, but credentials are expired or invalid.")
                 else:
-                    error = ApiCallException(response.status_code, response.text)
+                    request_details = "\n\tRequest URL: {}\n\tRequest headers: {}\n\tRequest data: {}".format(
+                        auth_url, auth_request_headers, data)
+                    error = ApiCallException(response.status_code, response.text + request_details)
                 ApiResource.auth_failure = error
                 raise error
 
