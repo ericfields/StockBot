@@ -8,6 +8,8 @@ This service utilizes the (unofficial) [Robinhood API](https://github.com/sanko/
 
 ## Installation
 
+### Initial setup
+
 First ensure that you have Python3 and pip installed.
 
 Once installed, you can install this package's dependencies with pip as follows:
@@ -16,26 +18,48 @@ Once installed, you can install this package's dependencies with pip as follows:
 pip3 install -r requirements.txt
 ```
 
+### Database configuration
+
+StockBot uses a PostgreSQL database by default, to store user portfolio data. Feel free to switch to a different database if you'd like.
+
+If you decide to stick with PostgreSQL, you'll need to have it installed separately. Once installed, you can quickly set up a database as follows:
+
+```
+sudo -u postgres createdb stockbot -O $USER
+```
+
+This will create a database named "stockbot" which will be owned by the current running user. You should be able to interact this database in the future by running `psql stockbot`.
+
+You can modify these database settings in the file `StockBot/settings.py`.
+
 Next, run the following to execute the database migrations (you should only need to do this once):
 
 ```
 python3 manage.py migrate
 ```
 
-You can then start the app by running the Django server.
+### Robinhood Authentication
+
+In order to retrieve stock quote data, you'll need to set the following configuration values in the `config.py` file:
+`robinhood_username`: Your Robinhood account username
+`robinhood_password`: Your Robinhood account password
+`robinhood_device_token`: A UUID value which is unique between Robinhood users. This can be obtained by logging into Robinhood via browser or app, and doing a Ctrl+F for "clientId:".
+
+Note that StockBot only uses these credentials to retrieve stock quote data, and does not retrieve or interact with any user-specific information, such as the details of stocks in a user's Robinhood portfolio.
+
+### Running StockBot
+
+Once setup is complete, you can start the app by running the Django server.
 
 ```
 python3 manage.py runserver
 ```
 
-To run the server so that is externally accessible (not recommended if used in production) on port 80, you can run it as follows:
-```
-sudo python3 manage.py runserver 0.0.0.0:80
-```
+You can specify a specific port/interface to run the server on. To make the application externally accessible on port 8080 for example:
 
-### Robinhood Authentication
-
-In order to retrieve stock quote data, you'll need to specify a valid Robinhood username and password in the `config.py` file.
+```
+sudo python3 manage.py runserver 0.0.0.0:8080
+```
 
 ## Features
 
