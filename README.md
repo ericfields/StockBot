@@ -40,7 +40,7 @@ python3 manage.py migrate
 
 ### Robinhood Authentication
 
-In order to retrieve stock quote data, you'll need to set the following configuration values in the `config.py` file:
+In order to retrieve stock quote data, you'll need to set the following configuration values in the `credentials.py` file:
 `robinhood_username`: Your Robinhood account username
 `robinhood_password`: Your Robinhood account password
 `robinhood_device_token`: A UUID value which is unique between Robinhood users. This can be obtained by logging into Robinhood via browser or app, and doing a Ctrl+F for "clientId:".
