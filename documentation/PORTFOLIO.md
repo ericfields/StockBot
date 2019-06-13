@@ -6,6 +6,46 @@ StockBot allows Mattermost users to create and quote their own portfolios! (with
 
 The endpoint for creating and managing portfolios is `/stocks/portfolio`. For these examples, we'll assume that we have a Mattermost slash command named `/portfolio`. Note that it's important to use a slash command for these activities, if you want to hide the actual contents of your portfolio!
 
+## Initial Setup
+
+### Configure a database
+
+Portfolios are stored within a database. In order to use the Portfolios feature, you must configure a database for the bot. See [Databases in Django](https://docs.djangoproject.com/en/2.2/ref/databases/) for guidance on configuring a database. You would configure these database settings in the StockBot [settings.py](settings.py) file.
+
+#### Sample Database Configuration - PostgreSQL
+
+If you have the PostgreSQL server installed on your machine, you can quickly set up a database as follows:
+
+```
+sudo -u postgres createdb stockbot -O $USER
+```
+
+This will create a database named "stockbot" which will be owned by the current running user. You should be able to interact this database in the future by running `psql stockbot`.
+
+You could then configure the settings for this database in the Stockbot [settings.py](StockBot/settings.py) file as follows:
+
+```
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'stockbot',
+        'USER': 'myusername',
+    }
+}
+```
+
+Next, run the following to execute the database migrations (you should only need to do this once):
+
+```
+python3 manage.py migrate
+```
+
+### Enable Portfolios
+
+Once the database is configured, set the `ENABLE_PORTFOLIOS` flag to `True` in the [StockBot/settings.py](StockBot/settings.py) file.
+
+## Using Portfolios
+
 ### Creating a portfolio:
 
 Every portfolio needs a symbol of its own, so that you and other users can quote it. To create your own portfolio named "MYSTUFF":

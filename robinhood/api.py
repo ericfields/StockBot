@@ -82,7 +82,7 @@ class ApiCallException(Exception):
         message = "{}: {}".format(code, message)
         super().__init__(message)
 
-class RobinhoodCredentialsException():
+class RobinhoodCredentialsException(Exception):
     pass
 
 class ApiInternalErrorException(ApiCallException):

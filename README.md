@@ -2,7 +2,8 @@
 
 This is an integration for Mattermost which displays up-to-date charts of a stock's performance. It can display charts for options as well.
 
-Users can also create their own custom portfolios and track their performance.
+This bot also supports the ability for users to create and maintain a "portfolio" of
+the assets they own. Users can then display charts with the overall performance of these portfolios, just as they would for a stock.
 
 This service utilizes the (unofficial) [Robinhood API](https://github.com/sanko/Robinhood) to retrieve stock quote information and history.
 
@@ -18,29 +19,9 @@ Once installed, you can install this package's dependencies with pip as follows:
 pip3 install -r requirements.txt
 ```
 
-### Database configuration
-
-StockBot uses a PostgreSQL database by default, to store user portfolio data. Feel free to switch to a different database if you'd like.
-
-If you decide to stick with PostgreSQL, you'll need to have it installed separately. Once installed, you can quickly set up a database as follows:
-
-```
-sudo -u postgres createdb stockbot -O $USER
-```
-
-This will create a database named "stockbot" which will be owned by the current running user. You should be able to interact this database in the future by running `psql stockbot`.
-
-You can modify these database settings in the file `StockBot/settings.py`.
-
-Next, run the following to execute the database migrations (you should only need to do this once):
-
-```
-python3 manage.py migrate
-```
-
 ### Robinhood Authentication
 
-In order to retrieve stock quote data, you'll need to set the following configuration values in the `credentials.py` file:
+In order to retrieve stock quote data, you'll need to set the following values in the `credentials.py` file:
 `robinhood_username`: Your Robinhood account username
 `robinhood_password`: Your Robinhood account password
 `robinhood_device_token`: A UUID value which is unique between Robinhood users. This can be obtained by logging into Robinhood via browser or app, and doing a Ctrl+F for "clientId:".
@@ -86,7 +67,7 @@ You can create a custom stock portfolio (just for tracking, not actual buying an
 /quote MYSTUFF
 ```
 
-See [PORTFOLIO.md](documentation/PORTFOLIO.md) for more info on tracking and quoting portfolios.
+Portfolios are disabled by default. See [PORTFOLIO.md](documentation/PORTFOLIO.md) for more info on enabling Portfolios support, as well as instructions on tracking and quoting portfolios.
 
 ### News
 

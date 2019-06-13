@@ -5,8 +5,12 @@ from exceptions import BadRequestException
 from robinhood.models import Stock, Option
 from datetime import datetime
 import re
+from django.conf import settings
 
 def portfolio(request):
+    if not settings.ENABLE_PORTFOLIOS:
+        raise BadRequestException("Portfolios have not been enabled for this StockBot instance.")
+
     if request.POST.get('text', None):
         return portfolio_action(request)
     else:

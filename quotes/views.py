@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 import json
 import re
 
+from django.conf import settings
+
 MARKET = 'XNYS'
 
 def get_chart(request, identifiers, span = 'day'):
@@ -161,20 +163,24 @@ def get_portfolios(span, identifiers):
     portfolios = []
     instruments = []
 
-    for identifier in identifiers:
-        # Check if this is a user portfolio
-        if identifier == 'EVERYONE':
-            for portfolio in Portfolio.objects.all():
-                if portfolio not in portfolios:
-                    portfolios.append(portfolio)
-        else:
-            if identifier not in [p.name for p in portfolios]:
-                portfolio = find_portfolio(identifier)
-                if portfolio:
-                    portfolios.append(portfolio)
-                else:
-                    # No portfolio with this identifier exists; must be an instrument.
-                    instruments.append(find_instrument(identifier))
+    if settings.ENABLE_PORTFOLIOS:
+        for identifier in identifiers:
+            # Check if this is a user portfolio
+            if identifier == 'EVERYONE':
+                for portfolio in Portfolio.objects.all():
+                    if portfolio not in portfolios:
+                        portfolios.append(portfolio)
+            else:
+                if identifier not in [p.name for p in portfolios]:
+                    portfolio = find_portfolio(identifier)
+                    if portfolio:
+                        portfolios.append(portfolio)
+                    else:
+                        # No portfolio with this identifier exists; must be an instrument.
+                        instruments.append(find_instrument(identifier))
+    else:
+        for identifier in identifiers:
+            instruments.append(find_instrument(identifier))
 
     # Wrap each of the remaining instruments in its own portfolio
     for instrument in instruments:
