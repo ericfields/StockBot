@@ -16,6 +16,8 @@ import re
 
 from django.conf import settings
 
+from exceptions import BadRequestException
+
 MARKET = 'XNYS'
 
 def get_chart(request, identifiers, span = 'day'):
