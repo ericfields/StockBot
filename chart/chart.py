@@ -10,6 +10,9 @@ from io import BytesIO
 from enum import Enum
 from collections import OrderedDict
 
+# Needed to register a datetime converter
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 
 class Chart():
     # Size of the overall chart
