@@ -233,3 +233,55 @@ server {
     return 301 https://mystockbot.com$request_uri;
 }
 ```
+
+## Configuring a database
+
+Portfolios are stored within a database. In order to use the Portfolios feature, you must configure a database for the bot. See [Databases in Django](https://docs.djangoproject.com/en/2.2/ref/databases/) for guidance on configuring a database. You would configure these database settings in the StockBot [settings.py](settings.py) file.
+
+### Sample Database Configuration - PostgreSQL
+
+If you have the PostgreSQL server installed on your machine, you can quickly set up a database as described below.
+
+#### Creating the database
+
+```
+createdb stockbot -O $USER
+```
+
+This may fail if your user does not have permissions to modify PostgreSQL databases on your server. You may have to create the `postgres` user and run the command as that user to set up the initial database.
+
+```
+sudo adduser postgres
+sudo -u postgres createdb stockbot -O $USER
+```
+
+This will create a database named "stockbot" which will be owned by the current running user. You should be able to interact this database in the future by running `psql stockbot`.
+
+#### Configuring Django
+
+You will need to specify a database driver for Django to interact with the database. The most commonly used one for PostgreSQL databases is `psycopg2`.
+
+You can install the `pscopg2-binary` for Python as follows:
+
+```
+pip install psycopg2
+```
+
+You can then configure the settings for this database in the Stockbot [settings.py](StockBot/settings.py) file as follows:
+
+```
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'stockbot',
+        'USER': 'myusername',
+    }
+}
+```
+
+
+Finally, run the following to execute the database migrations (you should only need to do this once):
+
+```
+python3 manage.py migrate
+```
