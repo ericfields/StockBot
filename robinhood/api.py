@@ -192,16 +192,41 @@ class ApiResource(ApiModel):
                 attempts -= 1
                 try:
                     response = requests.post(auth_url, headers=auth_request_headers, data=json.dumps(data))
-                    if response.status_code < 500:
-                        break
                 except requests.exceptions.ConnectionError as e:
                     # Occasional error, retry if possible
-                    if attempts <= 0:
-                        raise e
-                    else:
+                    if attempts > 0:
                         sleep(1)
+                        continue
 
-            if response.status_code != 200:
+                    raise e
+
+
+                if response.status_code == 200:
+                    data = response.json()
+                    ApiResource.api_token = data['access_token']
+                    ApiResource.refresh_token = data['refresh_token']
+                    ApiResource.last_auth_time = datetime.now()
+                    return True
+
+                if response.status_code >= 500:
+                    if attempts > 0:
+                        sleep(1)
+                        continue
+
+                    raise ApiInternalErrorException(response.status_code, response.text)
+
+                if response.status_code == 401:
+                    try:
+                        response_data = response.json()
+                        if 'error' in response_data and response_data['error'] == 'invalid_grant':
+                            # Refresh token is no longer valid
+                            # Remove it and re-attempt authentication with username/password
+                            ApiResource.refresh_token = None
+                            continue
+                    except ValueError:
+                        # Response is not valid JSON, let remaining error logic handle it
+                        pass
+
                 if response.status_code == 429:
                     error = ApiThrottledException(response.text)
                 elif response.status_code == 403:
@@ -213,12 +238,6 @@ class ApiResource(ApiModel):
                 ApiResource.auth_failure = error
                 raise error
 
-            data = response.json()
-            ApiResource.api_token = data['access_token']
-            ApiResource.refresh_token = data['refresh_token']
-            ApiResource.last_auth_time = datetime.now()
-
-            return True
         finally:
             ApiResource.auth_lock.release()
 
