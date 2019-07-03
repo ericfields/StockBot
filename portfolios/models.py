@@ -3,6 +3,7 @@ from django.core.validators import MinValueValidator
 import json
 from robinhood.models import Stock, Option
 from datetime import datetime
+from enum import IntEnum
 
 class User(models.Model):
     id = models.CharField(primary_key=True, max_length=64)
@@ -15,6 +16,15 @@ class Portfolio(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=14, unique=True)
     cash = models.FloatField(default=0, validators=[MinValueValidator(0)])
+
+    class Visibility(IntEnum):
+        PRIVATE = 0
+        LISTINGS = 1
+        RATIOS = 2
+        SHARES = 3
+        PUBLIC = 10
+
+    visibility = models.IntegerField(default=Visibility.PRIVATE)
 
     def __init__(self, *args, **kwargs):
         self.tmp_assets = []

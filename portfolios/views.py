@@ -7,7 +7,41 @@ from datetime import datetime
 import re
 from django.db import connection
 
+import logging
+
 DATABASE_PRESENT = bool(connection.settings_dict['NAME'])
+
+GENERAL_USAGE_STR = """Available commands:
+/portfolio create [portfolio_name] [$cash] [assets...]
+/portfolio rename [portfolio_name]
+/portfolio add [portfolio_name] [$cash] [assets...]
+/portfolio remove [portfolio_name] [$cash] [assets...]
+/portfolio buy [portfolio_name] [assets...]
+/portfolio sell [portfolio_name] [assets...]
+/portfolio destroy [portfolio_name]
+/portfolio visibility [portfolio_name] private|listings|ratios|shares|public
+"""
+
+VISIBILITY_USAGE_STR = """Usage: /portfolio visibility [portfolio_name] private|listings|ratios|shares|public
+    private: Only you can see any details about your portfolio.
+    listings: Other uses can see what stocks/options you are holding, but not how many.
+    ratios: Other uses can see relative amounts of stocks/options you are holding, as percentages of your portfolio's total value.
+    shares: Other users can see what stocks/options you are holding and how many. They cannot see how much cash is present, or your portfolio's total value.
+    public: Other users can see all details of your portfolio, including assets, amounts, cash, and total value.
+"""
+
+PORTFOLIO_COMMANDS = [
+    'create',
+    'rename',
+    'destroy',
+    'add',
+    'remove',
+    'buy',
+    'sell',
+    'visibility'
+]
+
+logger = logging.getLogger('stockbot')
 
 def portfolio(request):
     if not DATABASE_PRESENT:
@@ -19,16 +53,6 @@ def portfolio(request):
         return display_portfolio(request)
 
 def portfolio_action(request):
-    usage_str = """Usage:
-/portfolio create [portfolio_name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio rename [portfolio_name]
-/portfolio add [portfolio_name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio remove [portfolio_name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio buy [portfolio_name] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio sell [portfolio_name] [stock1:count, [stock2: count, [option1: count...]]]
-/portfolio destroy [portfolio_name]
-"""
-
     body = request.POST.get('text', None)
     parts = re.split('[,\s]+', body)
     # Remove empty parts
@@ -42,11 +66,11 @@ def portfolio_action(request):
 
     user = get_or_create_user(request)
 
-    if command.lower() not in ['create', 'rename', 'destroy', 'add', 'remove', 'buy', 'sell']:
+    if command.lower() not in PORTFOLIO_COMMANDS:
         if re.match('^[A-Z]{1,14}$', command):
             return display_portfolio(request, command)
         else:
-            raise BadRequestException(usage_str)
+            raise BadRequestException(GENERAL_USAGE_STR)
 
     command = command.lower()
 
@@ -67,6 +91,11 @@ def portfolio_action(request):
     if command == 'destroy':
         return delete_portfolio(portfolio)
 
+    if command == 'visibility':
+        if not parts or len(parts) > 1:
+            raise BadRequestException(VISIBILITY_USAGE_STR)
+        return toggle_portfolio_visibility(portfolio, parts[0])
+
     remove_assets = False
     maintain_value = False
 
@@ -78,7 +107,49 @@ def portfolio_action(request):
         maintain_value = True
         remove_assets = True
 
+    if not parts:
+        # This is an add/remove/buy/sell command, but no parts have been specified
+        usage_str = ("Usage: /portfolio {0} [asset1] [asset2]..."
+        + "\nExamples:"
+        + "\n\t/portfolio {0} AAPL ({0} a single share of AAPL)"
+        + "\n\t/portfolio {0} MSFT:5 ({0} five shares of MSFT)"
+        + "\n\t/portfolio {0} AAPL:2 MSFT:3 ({0} two shares of AAPl and three shares of MSFT)"
+        + "\n\t/portfolio {0} AMZN$2000C@7/20 ({0} AMZN $2000 call option expiring July 20)"
+        + "\n\t/portfolio {0} AAPL180P8-31-20 ({0} AAPL $180 put option expiring August 31, 2020)"
+        + "\n\t/portfolio {0} MSFT200C ({0} MSFT put option expiring end of this week"
+        + "\n\t/portfolio {0} MSFT200C:10 ({0} ten MSFT put options expiring end of this week"
+        )
+        if not maintain_value:
+            usage_str += "\n\t/portfolio {0} $100 ({0} $100 in cash)"
+
+        raise BadRequestException(usage_str.format(command))
+
     return update_portfolio(portfolio, parts, remove_assets=remove_assets, maintain_value=maintain_value)
+
+def toggle_portfolio_visibility(portfolio, visibility):
+    if visibility == 'private':
+        portfolio.visibility = Portfolio.Visibility.PRIVATE
+        result_str = "All contents of the portfolio are now hidden from other users."
+    elif visibility == 'listings':
+        portfolio.visibility = Portfolio.Visibility.LISTINGS
+        result_str = "Other users can now see the stocks/options in the portfolio (but not their amounts)."
+    elif visibility == 'ratios':
+        portfolio.visibility = Portfolio.Visibility.RATIOS
+        result_str = "Other users can now see the stocks/options in the portfolio, and the percentage of the total portfolio value that each stock/option consists of."
+    elif visibility == 'shares':
+        portfolio.visibility = Portfolio.Visibility.SHARES
+        result_str = "Other users can now see the actual amounts of each stocks/option you have in the portfolio."
+    elif visibility == 'public':
+        portfolio.visibility = Portfolio.Visibility.PUBLIC
+        result_str = "Other users can now see the full contents and monetary value of the portfolio, including cash amounts."
+    else:
+        raise BadRequestException("Invalid visibility level: {}\n{}".format(visibility, VISIBILITY_USAGE_STR))
+
+    portfolio.save()
+
+    return mattermost_text("The visibility of portfolio {} is now set to '{}'. {}".format(
+        portfolio.name, portfolio.visibility.name.lower(), result_str
+    ))
 
 def display_portfolio(request, portfolio_name=None):
     user = get_or_create_user(request)
@@ -87,8 +158,8 @@ def display_portfolio(request, portfolio_name=None):
     if portfolio_name:
         try:
             portfolio = Portfolio.objects.get(name=portfolio_name)
-            if portfolio.user != user:
-                raise BadRequestException("You do not own this portfolio.")
+            if portfolio.user != user and portfolio.visibility == Portfolio.Visibility.PRIVATE:
+                raise BadRequestException("This portfolio is set to private, and you do not own it. You cannot see its contents.")
         except Portfolio.DoesNotExist:
             raise BadRequestException("Portfolio does not exist: '{}'".format(portfolio_name))
     else:
@@ -104,7 +175,7 @@ def display_portfolio(request, portfolio_name=None):
                 "\n\t".join([p.name for p in portfolios])
             )
 
-    return print_portfolio(portfolio)
+    return print_portfolio(portfolio, portfolio.user == user)
 
 def rename_portfolio(portfolio, parts):
     if not parts:
@@ -311,30 +382,51 @@ def verify_name(name):
     return True
 
 
-def print_portfolio(portfolio):
+def print_portfolio(portfolio, is_owner=True):
+    if is_owner:
+        visibility = Portfolio.Visibility.PUBLIC
+    else:
+        visibility = portfolio.visibility
+
     quotes = quote_aggregate(portfolio)
 
     assets = portfolio.asset_set.all()
     cash_value = portfolio.cash
     total_value = sum([asset_value(quotes, a) for a in assets]) + cash_value
-    response = "{} (${:,.2f}):\n\tCash: ${:,.2f}\n\t{}".format(
-        portfolio.name, total_value, cash_value, assets_to_str(assets)
-    )
-    return mattermost_text(response)
+
+    asset_str = assets_to_str(assets, quotes, total_value, visibility)
+
+    portfolio_str = portfolio.name
+    if visibility == Portfolio.Visibility.PUBLIC:
+        portfolio_str += " (${:,.2f}):\n\tCash: ${:,.2f}".format(total_value, cash_value)
+    portfolio_str += "\n\t{}".format(asset_str)
+
+    return mattermost_text(portfolio_str)
 
 def asset_value(quotes, asset, count=None):
     if not count:
         count = asset.count
     return quotes[str(asset.instrument_id)].price() * count
 
-def assets_to_str(assets):
+def assets_to_str(assets, quotes, total_value, visibility):
     asset_strs = []
     for a in assets:
-        asset_str = a.identifier + ': '
-        if a.count % 1 == 0:
-            asset_str += str(round(a.count))
-        else:
-            asset_str += str(a.count)
+        asset_str = a.identifier
+        if visibility > Portfolio.Visibility.LISTINGS:
+            asset_str += ': '
+
+            if a.count % 1 == 0:
+                real_amount = round(a.count)
+            else:
+                real_amount = a.count
+
+            real_value = quotes[str(a.instrument_id)].price() * a.count * a.unit_count()
+
+            if visibility == Portfolio.Visibility.RATIOS:
+                asset_str += "{:.2f}%".format(real_value / total_value * 100)
+            elif visibility >= Portfolio.Visibility.SHARES:
+                asset_str += "{} (${:.2f})".format(real_amount, real_value)
+
         asset_strs.append(asset_str)
     if not asset_strs:
         return "No assets in portfolio"

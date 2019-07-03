@@ -94,6 +94,32 @@ if 'test' in sys.argv:
         }
     }
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+LOGGING = {
+    'version': 1,
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'StockBot.log'),
+        },
+        'console': {
+            'class': 'logging.StreamHandler'
+        }
+    },
+    'loggers': {
+        'stockbot': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO'
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO'
+        }
+    }
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/2.1/ref/settings/#auth-password-validators
