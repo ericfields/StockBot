@@ -264,17 +264,16 @@ You will need to specify a database driver for Django to interact with the datab
 You can install the `pscopg2-binary` for Python as follows:
 
 ```
-pip install psycopg2
+pip install psycopg2-binary
 ```
 
-You can then configure the settings for this database in the Stockbot [settings.py](StockBot/settings.py) file as follows:
+You can then configure the settings for this database in the Stockbot [settings.py](StockBot/settings.py) file by uncommenting the following section:
 
 ```
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'stockbot',
-        'USER': 'myusername',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'stockbot'
     }
 }
 ```

@@ -7,9 +7,6 @@ class PortfolioViewsTestCase(TestCase):
     def setUp(self):
         self.client = Client()
 
-        # Need to override ENABLE_PORTFOLIOS setting
-        settings.ENABLE_PORTFOLIOS = True
-
     def test_create_portfolio(self):
         name, response = self.create_portfolio('bob', 'AAPL AMZN:2')
         self.assertContains(response, name)

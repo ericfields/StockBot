@@ -6,10 +6,6 @@ StockBot allows Mattermost users to create and quote their own portfolios! (with
 
 The endpoint for creating and managing portfolios is `/stocks/portfolio`. For these examples, we'll assume that we have a Mattermost slash command named `/portfolio`. Note that it's important to use a slash command for these activities, if you want to hide the actual contents of your portfolio!
 
-## Enable Portfolios
-
-Once the database is configured, set the `ENABLE_PORTFOLIOS` flag to `True` in the [StockBot/settings.py](StockBot/settings.py) file.
-
 ## Using Portfolios
 
 ### Creating a portfolio:

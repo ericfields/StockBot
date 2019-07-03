@@ -14,11 +14,13 @@ from datetime import datetime, timedelta
 import json
 import re
 
-from django.conf import settings
+from django.db import connection
 
 from exceptions import BadRequestException
 
 MARKET = 'XNYS'
+
+DATABASE_PRESENT = bool(connection.settings_dict['NAME'])
 
 def get_chart(request, identifiers, span = 'day'):
     span = str_to_duration(span)
@@ -165,7 +167,7 @@ def get_portfolios(span, identifiers):
     portfolios = []
     instruments = []
 
-    if settings.ENABLE_PORTFOLIOS:
+    if DATABASE_PRESENT:
         for identifier in identifiers:
             # Check if this is a user portfolio
             if identifier == 'EVERYONE':
