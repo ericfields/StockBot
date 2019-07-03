@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/2.1/ref/settings/
 """
 
 import os
+import sys
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -80,14 +81,23 @@ TEMPLATES = [
 WSGI_APPLICATION = 'StockBot.wsgi.application'
 
 
-# Database
+# Define a database here. Note that a database is required for the Portfolio feature.
 # https://docs.djangoproject.com/en/2.1/ref/settings/#databases
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'stockbot',
+#     }
+# }
 
-DATABASES = {
-    'default': {
-
+# Use a sqlite database specifically for testing
+if 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': 'test-stockbot'
+        }
     }
-}
 
 
 # Password validation
