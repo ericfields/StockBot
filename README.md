@@ -67,7 +67,7 @@ You can create a custom stock portfolio (just for tracking, not actual buying an
 /quote MYSTUFF
 ```
 
-Portfolios are disabled by default. See [PORTFOLIO.md](documentation/PORTFOLIO.md) for more info on enabling Portfolios support, as well as instructions on tracking and quoting portfolios.
+Portfolios require a database to be configured. See [PORTFOLIO.md](documentation/PORTFOLIO.md) for more info on enabling Portfolios support, as well as instructions on tracking and quoting portfolios.
 
 ### News
 

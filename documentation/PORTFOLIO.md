@@ -111,3 +111,64 @@ When you quote multiple user portfolios, a different line will be plotted for ea
 `/quote MYSTUFF,YOURSTUFF`
 
 You can quote up to ten portfolios at once.
+
+### Allowing other users to see your portfolio contents
+
+By default, the actual contents of your portfolio are private, and only you can see them. You can choose to make your portfolio visible to others, with varying levels of detail, as follows:
+
+```
+/portfolio visibility private|listings|ratios|shares|public
+```
+
+For example, to change the visibility of your portfolio to "listings":
+```
+/portfolio visibility listings
+```
+
+...or if you have multiple portfolios, you can specify which one to modify:
+
+```
+/portfolio visibility MYSTUFF listings
+```
+
+Other users can now view the contents of your portfolio as follows (with limited information, depending on your visibility level):
+```
+/portfolio MYSTUFF
+```
+#### Visibility levels
+
+For our examples, let's say we have a portfolio MYSTUFF that contains the following:
+```
+MYSTUFF ($1000.00)
+  Cash: $500.00
+  AAPL: 1 ($200.00)
+  MSFT: 2 ($300.00)
+```
+
+The various visibility levels are as follows:
+* `private` (default) - No other users can see the contents of your portfolio.
+* `listings` - Users can see a list of the stocks/options you have in your portfolio, but they cannot see the number of shares/contracts you are holding for each. They cannot see the total value of your portfolio or its cash value either. For example, if another user quoted MYSTUFF they would see the following:
+```
+MYSTUFF
+  AAPL
+  MSFT
+```
+* `ratios` - Other users will see the proportion of your portfolio's total value which each set of stocks/options you have makes up. For example:
+```
+MYSTUFF
+  AAPL: 20%
+  MSFT: 30%
+```
+* `shares` - Other users will see the actual number of shares of each stock/option you have in your portfolio. For example:
+```
+MYSTUFF
+  AAPL: 1 ($200.00)
+  MSFT: 2 ($300.00)
+```
+* `public` - This makes the full details of your portfolio public. Other users will be able to see all of the information for your portfolio, i.e.:
+```
+MYSTUFF ($1000.00)
+  Cash: $500.00
+  AAPL: 1 ($200.00)
+  MSFT: 2 ($300.00)
+```
