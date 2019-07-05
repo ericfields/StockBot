@@ -421,11 +421,12 @@ def assets_to_str(assets, quotes, total_value, visibility):
                 real_amount = a.count
 
             real_value = quotes[str(a.instrument_id)].price() * a.count * a.unit_count()
+            proportion = real_value / total_value
 
             if visibility == Portfolio.Visibility.RATIOS:
-                asset_str += "{:.2f}%".format(real_value / total_value * 100)
+                asset_str += "{:.2f}%".format(proportion * 100)
             elif visibility >= Portfolio.Visibility.SHARES:
-                asset_str += "{} (${:.2f})".format(real_amount, real_value)
+                asset_str += "{} (${:.2f}, {:.2f}%)".format(real_amount, real_value, proportion * 100)
 
         asset_strs.append(asset_str)
     if not asset_strs:
