@@ -22,7 +22,7 @@ class ApiModel():
     refresh_token = None
 
     last_auth_time = None
-    auth_failure = None
+    permanent_auth_failure = None
 
     # Flag indicating a type reference to the current class
     class CurrentClass():
@@ -154,8 +154,8 @@ class ApiResource(ApiModel):
 
         try:
             # If authentication has already failed, do not try again
-            if ApiResource.auth_failure:
-                raise ApiResource.auth_failure
+            if ApiResource.permanent_auth_failure:
+                raise ApiResource.permanent_auth_failure
 
             # If we just attempted authentication (i.e. in another asynchronous call) do not attempt again
             if ApiResource.last_auth_time and datetime.now() - ApiResource.last_auth_time < timedelta(seconds=5):
@@ -228,14 +228,17 @@ class ApiResource(ApiModel):
                         pass
 
                 if response.status_code == 429:
-                    error = ApiThrottledException(response.text)
-                elif response.status_code == 403:
+                    raise ApiThrottledException(response.text)
+
+                # Error codes other than these are considered to be permanent errors,
+                # due to invalid credentials or other issues with user-provided credentials.
+                if response.status_code == 403:
                     error = ApiForbiddenException("Authentication is required for this endpoint, but credentials are expired or invalid.")
                 else:
                     request_details = "\n\tRequest URL: {}\n\tRequest headers: {}\n\tRequest data: {}".format(
                         auth_url, auth_request_headers, data)
                     error = ApiCallException(response.status_code, response.text + request_details)
-                ApiResource.auth_failure = error
+                ApiResource.permanent_auth_failure = error
                 raise error
 
         finally:
