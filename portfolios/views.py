@@ -406,28 +406,35 @@ def print_portfolio(portfolio, is_owner=True):
 def asset_value(quotes, asset, count=None):
     if not count:
         count = asset.count
-    return quotes[str(asset.instrument_id)].price() * count
+    instrument_id = str(asset.instrument_id)
+    if instrument_id in quotes:
+        return quotes[instrument_id].price() * count * asset.unit_count()
+    else:
+        return 0
 
 def assets_to_str(assets, quotes, total_value, visibility):
     asset_strs = []
     for a in assets:
         asset_str = a.identifier
-        if visibility > Portfolio.Visibility.LISTINGS:
-            asset_str += ': '
+        if str(a.instrument_id) not in quotes:
+            asset_str += " (delisted)"
+            asset_strs.append(asset_str)
+            continue
 
+        if visibility > Portfolio.Visibility.LISTINGS:
+            asset_str += ": "
             if a.count % 1 == 0:
                 real_amount = round(a.count)
             else:
                 real_amount = a.count
 
-            real_value = quotes[str(a.instrument_id)].price() * a.count * a.unit_count()
+            real_value = asset_value(quotes, a)
             proportion = real_value / total_value
 
             if visibility == Portfolio.Visibility.RATIOS:
                 asset_str += "{:.2f}%".format(proportion * 100)
             elif visibility >= Portfolio.Visibility.SHARES:
                 asset_str += "{} (${:.2f}, {:.2f}%)".format(real_amount, real_value, proportion * 100)
-
         asset_strs.append(asset_str)
     if not asset_strs:
         return "No assets in portfolio"
