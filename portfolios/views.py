@@ -212,7 +212,7 @@ def find_portfolio(user, portfolio_name=None):
             # If so, simply use the user's one and only portfolio if they have one.
             # If not, raise an error.
             try:
-                find_instrument(portfolio_name)
+                get_instrument(portfolio_name)
             except BadRequestException:
                 raise BadRequestException("No such portfolio or stock/option exists: '{}'".format(portfolio_name))
 
@@ -226,6 +226,13 @@ def find_portfolio(user, portfolio_name=None):
             "\n\t".join([p.name for p in portfolios])
         )
     return portfolio
+
+def get_instrument(identifier):
+    # Check if an instrument URL exists in the portfolio database first
+    try:
+        return Asset.objects.get(identifier=identifier).instrument()
+    except Asset.DoesNotExist:
+        return find_instrument(identifier)
 
 def create_portfolio(user, parts):
     usage_str = "Usage: /portfolio create [name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]"
@@ -299,9 +306,14 @@ def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value 
             except ValueError:
                 raise BadRequestException("Invalid count: '{}'".format(parts[1]))
         else:
-            count = 1
+            # If buying an asset, assume a default count of 1
+            # If selling, assume all shares/contracts are being sold
+            if remove_assets:
+                count = None
+            else:
+                count = 1
 
-        instrument = find_instrument(identifier)
+        instrument = get_instrument(identifier)
         instrument_counts.append((instrument,count))
 
     instruments = [ic[0] for ic in instrument_counts]
@@ -340,8 +352,11 @@ def sell_assets(portfolio, instrument, count, quotes):
     except Asset.DoesNotExist:
         raise BadRequestException("You do not have any {} in your portfolio".format(instrument))
 
-    if count > asset.count:
-        raise BadRequestException("You do not have {} {} {}s to sell in your portfolio".format(
+    if not count:
+        # Assume the user wants to sell all their shares
+        count = asset.count
+    elif count > asset.count:
+        raise BadRequestException("You do not have {} {} {}(s) to sell in your portfolio".format(
             count, instrument, instrument.__class__.__name__.lower()
         ))
 

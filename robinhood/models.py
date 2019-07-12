@@ -163,7 +163,9 @@ class Stock(Instrument):
         'fundamentals': Fundamentals,
         'quote': Quote,
         'market': Market,
-        'url': str
+        'url': str,
+        'tradeable': bool,
+        'state': str
     }
 
     def current_value(self):
@@ -193,7 +195,8 @@ class Option(Instrument):
         'chain_id': str,
         'type': str,
         'chain_symbol': str,
-        'url': str
+        'url': str,
+        'tradeable': bool
     }
 
     class Quote(ApiResource):

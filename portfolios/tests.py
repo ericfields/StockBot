@@ -45,7 +45,7 @@ class PortfolioViewsTestCase(TestCase):
         response = self.display_portfolio('bob', name2)
         self.assertContains(response, name2)
 
-    def test_portfolio_ownership(self):
+    def test_portfolio_privacy(self):
         bobs, _ = self.create_portfolio('bob', 'AAPL:1 AMZN:2')
         alices, _ = self.create_portfolio('alice', 'AAPL:3 AMZN:4')
 
@@ -57,9 +57,9 @@ class PortfolioViewsTestCase(TestCase):
         self.assertNotContains(response, bobs)
 
         response = self.display_portfolio('bob', alices)
-        self.assertContains(response, 'You do not own this portfolio')
+        self.assertContains(response, 'This portfolio is set to private, and you do not own it. You cannot see its contents.')
         response = self.display_portfolio('alice', bobs)
-        self.assertContains(response, 'You do not own this portfolio')
+        self.assertContains(response, 'This portfolio is set to private, and you do not own it. You cannot see its contents.')
 
     def test_portfolio_add(self):
         name, response = self.create_portfolio('bob')

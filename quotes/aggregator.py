@@ -4,12 +4,15 @@ from quotes.stock_handler import StockHandler
 from quotes.option_handler import OptionHandler
 from multiprocessing.pool import ThreadPool
 import re
+import logging
 
 """Extracts instruments from multiple stocks/options/portfolios and combines them into
 a single query to send to Robinhood API for quote/historical data.
 """
 
 pool = ThreadPool(processes=10)
+
+logger = logging.getLogger('stockbot')
 
 def quote_and_historicals_aggregate(start_time, end_time, *securities):
     instruments = extract_instruments(*securities)
@@ -73,6 +76,11 @@ def fetch_data(instruments, historical_params=None):
 def get_instrument_urls(instruments):
     stock_urls, option_urls = set(), set()
     for instrument in instruments:
+        # Don't fetch quotes for untradeable instruments
+        if type(instrument) == Stock and instrument.state == 'inactive':
+            logger.info("Inactive instrument, ignoring price data: " + instrument.identifier())
+            continue
+
         if type(instrument) == Stock:
             stock_urls.add(instrument.instrument_url())
         elif type(instrument) == Option:
@@ -83,14 +91,12 @@ def get_instrument_urls(instruments):
 def extract_instruments(*securities):
     instruments = []
     for security in securities:
-        instrument = None
-
         security_type = type(security)
         if security_type == Portfolio:
             for asset in security.assets():
-                instruments.append(instrument_from_asset(asset))
+                instruments.append(asset.instrument())
         elif security_type == Asset:
-            instruments.append(instrument_from_asset(security))
+            instruments.append(security.instrument())
         elif security_type == Stock or security_type == Option:
             instruments.append(security)
         elif security_type == str:
@@ -105,15 +111,6 @@ def extract_instruments(*securities):
             raise Exception("Invalid security type: {}".format(security_type))
 
     return instruments
-
-def instrument_from_asset(asset):
-    if asset.type == Asset.STOCK:
-        instrument = Stock(id=asset.instrument_id)
-    elif asset.type == Asset.OPTION:
-        instrument = Option(id=asset.instrument_id)
-    else:
-        raise Exception("Invalid asset type: {}".format(asset.type))
-    return instrument
 
 def async_call(method, *args, **kwargs):
     return pool.apply_async(method, tuple(args), kwargs)

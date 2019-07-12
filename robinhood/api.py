@@ -74,12 +74,20 @@ class ApiModel():
         else:
             return attr_type(val)
 
+    def data(self):
+        attrs = {}
+        for attr in self.attributes:
+            attrs[attr] = getattr(self, attr)
+        return attrs
+        
 class ApiCallException(Exception):
     code = None
+    body = None
 
-    def __init__(self, code, message):
+    def __init__(self, code, body):
         self.code = code
-        message = "{}: {}".format(code, message)
+        self.body = body
+        message = "{}: {}".format(code, body)
         super().__init__(message)
 
 class RobinhoodCredentialsException(Exception):
