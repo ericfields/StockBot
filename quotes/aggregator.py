@@ -25,11 +25,11 @@ def quote_and_historicals_aggregate(start_time, end_time, *securities):
     for q in quotes:
         if q.instrument in instrument_map:
             instrument = instrument_map[q.instrument]
-        quote_map[instrument.id] = q
+            quote_map[instrument.id] = q
     for h in historicals:
         if h.instrument in instrument_map:
             instrument = instrument_map[h.instrument]
-        historicals_map[instrument.id] = h
+            historicals_map[instrument.id] = h
 
     return quote_map, historicals_map
 
