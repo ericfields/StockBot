@@ -37,8 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'quotes',
-    'portfolios'
+    'quotes.apps.QuotesConfig',
+    'portfolios.apps.PortfoliosConfig'
 ]
 
 MIDDLEWARE = [
@@ -75,16 +75,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'StockBot.wsgi.application'
 
-
-# Define a database here. Note that a database is required for the Portfolio feature.
-# https://docs.djangoproject.com/en/2.1/ref/settings/#databases
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'stockbot',
-#     }
-# }
-
 # Use a sqlite database specifically for testing
 if 'test' in sys.argv:
     DATABASES = {
@@ -93,6 +83,8 @@ if 'test' in sys.argv:
             'NAME': 'test-stockbot'
         }
     }
+
+from .database_settings import *
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -109,6 +101,10 @@ LOGGING = {
         }
     },
     'loggers': {
+        'debugger': {
+            'handlers': ['console'],
+            'level': 'DEBUG'
+        },
         'stockbot': {
             'handlers': ['console', 'file'],
             'level': 'INFO'
@@ -165,6 +161,20 @@ CACHES = {
         'TIMEOUT': 300,
         'OPTIONS': {
             'MAX_ENTRIES': 1000
+        }
+    },
+    'short': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'TIMEOUT': 300,
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000
+        }
+    },
+    'long': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'TIMEOUT': 86400,
+        'OPTIONS': {
+            'MAX_ENTRIES': 10000
         }
     }
 }
