@@ -1,16 +1,22 @@
 from django.test import TestCase, Client
-from quotes.aggregator import quote_aggregate
+from quotes.aggregator import Aggregator
 from robinhood.models import Instrument
-from portfolios.models import Asset, Portfolio
-from quotes.stock_handler import StockHandler
-from quotes.option_handler import OptionHandler
+from portfolios.models import Asset, Portfolio, User
+from robinhood.stock_handler import StockHandler
+from robinhood.option_handler import OptionHandler
 from time import sleep
 from datetime import datetime, timedelta
 
 class QuotesTestCase(TestCase):
+
     def setUp(self):
-        instruments = [StockHandler.search_for_instrument(s) for s in ['AAPL', 'MSFT', 'AMZN']]
-        portfolio = Portfolio.objects.create(name='QUOTESA', user_id='testuser')
+        self.stock_handler = StockHandler()
+        self.option_handler = OptionHandler()
+
+        instruments = self.stock_handler.find_instruments('AAPL', 'MSFT', 'AMZN').values()
+
+        user = User.objects.create(id='1234', name='testuser')
+        portfolio = Portfolio.objects.create(name='QUOTESA', user_id=user.id)
         [portfolio.asset_set.create(instrument=i) for i in instruments]
         self.client = Client()
 
@@ -34,53 +40,47 @@ class QuotesTestCase(TestCase):
 
 class AggregatorTestCase(TestCase):
     def setUp(self):
-        self.stock_symbols = ['MSFT', 'AMZN', 'AAPL']
-        self.stocks = [StockHandler.search_for_instrument(symbol) for symbol in self.stock_symbols]
+        self.stock_handler = StockHandler()
+        self.option_handler = OptionHandler()
 
-        self.option_identifiers = ['SNAP6P', 'AAPL200C', 'AMZN1800C']
-        self.options = [OptionHandler.search_for_instrument(symbol) for symbol in self.option_identifiers]
+        stock_identifiers = ['MSFT', 'AMZN', 'AAPL']
+        option_identifiers = ['SNAP6P', 'AAPL200C', 'AMZN1800C']
 
-        self.identifiers = self.stock_symbols + self.option_identifiers
-        self.instruments = self.stocks + self.options
+        self.instruments = {}
+        self.instruments.update(self.stock_handler.find_instruments(*stock_identifiers))
+        self.instruments.update(self.option_handler.find_instruments(*option_identifiers))
+
+        self.identifiers = stock_identifiers + option_identifiers
 
     def test_quotes_with_identifiers(self):
-        quotes = quote_aggregate(*self.identifiers)
-        self.assertEquals(len(quotes), len(self.identifiers))
-        self.check_all_present(quotes)
+        aggregator = Aggregator(*self.identifiers)
+        quotes = aggregator.quotes()
+        self.check_all_present(quotes, self.identifiers)
 
     def test_quotes_with_instruments(self):
-        quotes = quote_aggregate(*self.instruments)
-        self.assertEquals(len(quotes), len(self.instruments))
-        self.check_all_present(quotes)
-
-    def test_stock_quotes_only(self):
-        quotes = quote_aggregate(*self.stocks)
-        self.assertEquals(len(quotes), len(self.stocks))
-        for stock in self.stocks:
-            self.assertTrue(stock.id in quotes)
-            self.assertTrue(quotes[stock.id].symbol == stock.symbol)
+        aggregator = Aggregator(*self.instruments.values())
+        quotes = aggregator.quotes()
+        self.check_all_present(quotes, self.instruments.values())
 
     def test_quotes_with_assets(self):
-        assets = [Asset(instrument=i) for i in self.instruments]
-        quotes = quote_aggregate(*assets)
-        self.check_all_present(quotes)
+        assets = [Asset(instrument=i) for i in self.instruments.values()]
+        aggregator = Aggregator(*assets)
+        quotes = aggregator.quotes()
+        self.check_all_present(quotes, assets)
 
     def test_quotes_with_portfolios(self):
         portfolio = Portfolio.objects.create(user_id='testuser', name='TEST')
-        [portfolio.asset_set.create(instrument=i) for i in self.instruments]
-        quotes = quote_aggregate(portfolio)
-        self.check_all_present(quotes)
+        [portfolio.asset_set.create(instrument=i) for i in self.instruments.values()]
+        aggregator = Aggregator(portfolio)
+        quotes = aggregator.quotes()
+        self.check_all_present(quotes, portfolio.assets())
 
-    def test_quotes_with_duplicate_instruments(self):
-        quotes = quote_aggregate(*self.instruments, *self.instruments)
-        self.assertEquals(len(quotes), len(self.instruments))
-        self.check_all_present(quotes)
-
-    def check_all_present(self, results):
-        self.assertEquals(len(results), len(self.instruments))
-        for stock in self.stocks:
-            self.assertTrue(stock.id in results)
-            self.assertTrue(results[stock.id].instrument == stock.instrument_url())
-        for option in self.options:
-            self.assertTrue(option.id in results)
-            self.assertTrue(results[option.id].instrument == option.instrument_url())
+    def check_all_present(self, results, items):
+        identifiers = set()
+        for i in items:
+            identifiers.add(Aggregator.get_identifier(i))
+        for identifier in identifiers:
+            identifier = Aggregator.get_identifier(identifier)
+            self.assertTrue(identifier in results)
+            instrument = self.instruments[identifier]
+            self.assertTrue(results[identifier].instrument == instrument.url)

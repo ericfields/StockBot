@@ -1,8 +1,8 @@
 from .models import User, Portfolio, Asset
-from helpers.utilities import mattermost_text, find_instrument
-from quotes.aggregator import quote_aggregate
+from helpers.utilities import mattermost_text
+from quotes.aggregator import Aggregator
 from exceptions import BadRequestException
-from robinhood.models import Stock, Option
+from robinhood.models import Stock
 from datetime import datetime
 import re
 from django.db import connection
@@ -83,6 +83,7 @@ def portfolio_action(request):
         portfolio_name = None
     portfolio = find_portfolio(user, portfolio_name)
     if portfolio_name and portfolio.name == portfolio_name:
+        # This first part is a portfolio name, remove it from the rest
         parts.pop(0)
 
     if command == 'rename':
@@ -175,7 +176,9 @@ def display_portfolio(request, portfolio_name=None):
                 "\n\t".join([p.name for p in portfolios])
             )
 
-    return print_portfolio(portfolio, portfolio.user == user)
+    aggregator = Aggregator(portfolio)
+
+    return print_portfolio(portfolio, aggregator, portfolio.user == user)
 
 def rename_portfolio(portfolio, parts):
     if not parts:
@@ -210,11 +213,7 @@ def find_portfolio(user, portfolio_name=None):
         except Portfolio.DoesNotExist:
             # Provided field may not actually be a portfolio name, but an instrument.
             # If so, simply use the user's one and only portfolio if they have one.
-            # If not, raise an error.
-            try:
-                get_instrument(portfolio_name)
-            except BadRequestException:
-                raise BadRequestException("No such portfolio or stock/option exists: '{}'".format(portfolio_name))
+            pass
 
     portfolios = Portfolio.objects.filter(user=user)
     if not portfolios:
@@ -226,13 +225,6 @@ def find_portfolio(user, portfolio_name=None):
             "\n\t".join([p.name for p in portfolios])
         )
     return portfolio
-
-def get_instrument(identifier):
-    # Check if an instrument URL exists in the portfolio database first
-    try:
-        return Asset.objects.get(identifier=identifier).instrument()
-    except Asset.DoesNotExist:
-        return find_instrument(identifier)
 
 def create_portfolio(user, parts):
     usage_str = "Usage: /portfolio create [name] [$cash] [stock1:count, [stock2: count, [option1: count...]]]"
@@ -269,13 +261,14 @@ def delete_portfolio(portfolio):
     return mattermost_text("{} deleted.".format(portfolio.name))
 
 def update_portfolio(portfolio, asset_defs, **opts):
-    process_assets(portfolio, asset_defs, **opts)
+    aggregator = Aggregator()
+    process_assets(portfolio, aggregator, asset_defs, **opts)
 
-    return print_portfolio(portfolio)
+    return print_portfolio(portfolio, aggregator)
 
-def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value = False):
+def process_assets(portfolio, aggregator, asset_defs, remove_assets = False, maintain_value = False):
     assets_to_save = []
-    instrument_counts = []
+    identifier_count_map = {}
     for ad in asset_defs:
         # Check for cash value
         if re.match('^\$[0-9]+(\.[0-9]{2})?$', ad):
@@ -296,7 +289,7 @@ def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value 
         if not parts:
             raise BadRequestException("Invalid definition: '{}'".format(ad))
 
-        identifier = parts[0]
+        identifier = parts[0].upper()
 
         if len(parts) > 1:
             try:
@@ -313,14 +306,15 @@ def process_assets(portfolio, asset_defs, remove_assets = False, maintain_value 
             else:
                 count = 1
 
-        instrument = get_instrument(identifier)
-        instrument_counts.append((instrument,count))
+        identifier_count_map[identifier] = count
 
-    instruments = [ic[0] for ic in instrument_counts]
-    quotes = quote_aggregate(*instruments)
+    aggregator.load_instruments(portfolio, *identifier_count_map.keys())
 
-    for instrument_count in instrument_counts:
-        instrument, count = instrument_count
+    quotes = aggregator.quotes()
+
+    for identifier in identifier_count_map:
+        instrument = aggregator.get_instrument(identifier)
+        count = identifier_count_map[identifier]
         if remove_assets:
             value_sold = sell_assets(portfolio, instrument, count, quotes)
             if maintain_value:
@@ -397,13 +391,13 @@ def verify_name(name):
     return True
 
 
-def print_portfolio(portfolio, is_owner=True):
+def print_portfolio(portfolio, aggregator, is_owner=True):
     if is_owner:
         visibility = Portfolio.Visibility.PUBLIC
     else:
         visibility = portfolio.visibility
 
-    quotes = quote_aggregate(portfolio)
+    quotes = aggregator.quotes()
 
     assets = portfolio.asset_set.all()
     cash_value = portfolio.cash
@@ -421,9 +415,8 @@ def print_portfolio(portfolio, is_owner=True):
 def asset_value(quotes, asset, count=None):
     if not count:
         count = asset.count
-    instrument_id = str(asset.instrument_id)
-    if instrument_id in quotes:
-        return quotes[instrument_id].price() * count * asset.unit_count()
+    if asset.instrument_url in quotes:
+        return quotes[asset.instrument_url].price() * count * asset.unit_count()
     else:
         return 0
 
@@ -431,7 +424,7 @@ def assets_to_str(assets, quotes, total_value, visibility):
     asset_strs = []
     for a in assets:
         asset_str = a.identifier
-        if str(a.instrument_id) not in quotes:
+        if a.instrument_url not in quotes:
             asset_str += " (delisted)"
             asset_strs.append(asset_str)
             continue

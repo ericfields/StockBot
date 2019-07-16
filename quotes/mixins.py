@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.utils.deprecation import MiddlewareMixin
-from exceptions import BadRequestException, ConfigurationException, ForbiddenException
+from exceptions import *
 from robinhood.api import ApiForbiddenException
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from helpers.utilities import mattermost_text
@@ -12,8 +12,10 @@ class HandleExceptionMiddleware(MiddlewareMixin):
             status = 400
         elif isinstance(exception, ConfigurationException):
             status = 401
-        elif isinstance(exception, ApiForbiddenException)or isinstance(exception, ForbiddenException):
+        elif isinstance(exception, ApiForbiddenException) or isinstance(exception, ForbiddenException):
             status = 403
+        elif isinstance(exception, NotFoundException):
+            status = 404
         else:
             raise(exception)
 

@@ -247,7 +247,7 @@ class Option(Instrument):
 
     def short_name(self):
         type = self.type[0].upper()
-        expiration = self.expiration_date.strftime("%-m/%-d")
+        expiration = self.expiration_date.strftime("%D")
         price = self.strike_price
         if price % 1 > 0:
             price = round(price, 1)

@@ -16,12 +16,11 @@ class ChartData():
         # Remove any assets without historical data, i.e. missing or delisted assets
         assets = []
         for asset in self.portfolio.assets():
-            instrument_id = str(asset.instrument_id)
-            if instrument_id in historicals:
+            if asset.instrument_url in historicals:
                 assets.append(asset)
-            elif instrument_id in quotes:
+            elif asset.instrument_url in quotes:
                 logger.info("'{}' has likely been bought out or acquired. Treating as cash.".format(asset.identifier))
-                self.portfolio.cash += quotes[instrument_id].price() * asset.count * asset.unit_count()
+                self.portfolio.cash += quotes[asset.instrument_url].price() * asset.count * asset.unit_count()
             else:
                 logger.warning("No data exists for stock/option '{}'".format(asset.identifier))
 
@@ -38,7 +37,7 @@ class ChartData():
     def __get_portfolio_current_value(self, assets, quotes):
         current_value = self.portfolio.cash
         for asset in assets:
-            asset_quote = quotes[str(asset.instrument_id)]
+            asset_quote = quotes[asset.instrument_url]
             current_value += asset_quote.price() * asset.count * asset.unit_count()
 
         return current_value
@@ -47,7 +46,7 @@ class ChartData():
         reference_price = self.portfolio.cash
 
         for asset in assets:
-            asset_historicals = historicals[str(asset.instrument_id)]
+            asset_historicals = historicals[asset.instrument_url]
             if asset.type == asset.__class__.STOCK and asset_historicals.previous_close_price:
                 asset_reference_price = asset_historicals.previous_close_price
             else:
@@ -69,7 +68,7 @@ class ChartData():
     def __get_chart_price_map(self, assets, historicals, start_time, end_time):
         chart_price_map = {}
         for asset in assets:
-            asset_historicals = historicals[str(asset.instrument_id)]
+            asset_historicals = historicals[asset.instrument_url]
             for h in asset_historicals.items:
                 if start_time <= h.begins_at <= end_time:
                     if h.begins_at not in chart_price_map:

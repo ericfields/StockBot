@@ -1,7 +1,7 @@
 import re
 from exceptions import BadRequestException
-from quotes.stock_handler import StockHandler
-from quotes.option_handler import OptionHandler
+from robinhood.stock_handler import StockHandler
+from robinhood.option_handler import OptionHandler
 from django.http import HttpResponse
 from datetime import timedelta
 from uuid import UUID
@@ -43,30 +43,6 @@ def mattermost_text(text, icon_url=None, in_channel=False):
     return HttpResponse(json.dumps(params), content_type='application/json')
 
 QUOTE_HANDLERS = [StockHandler, OptionHandler]
-
-def find_instrument(identifier):
-    instrument = None
-    for handler in QUOTE_HANDLERS:
-        try:
-            instrument = handler.get_instrument(UUID(identifier))
-            if instrument:
-                break
-        except ValueError:
-            # Identifier is not a UUID. Search by its identifier string instead
-            pass
-
-        if re.match(handler.FORMAT, identifier.upper()):
-            instrument = handler.search_for_instrument(identifier.upper())
-            break
-
-    if not instrument:
-        # No valid handlers for this identifier format
-        raise BadRequestException("Invalid identifier '{}'. Valid formats:\n\t{}".format(
-            identifier, valid_format_example_str())
-        )
-
-    return instrument
-
 def valid_format_example_str():
     return "\n\t".join(["{}: {}".format(h.TYPE, h.EXAMPLE) for h in QUOTE_HANDLERS])
 

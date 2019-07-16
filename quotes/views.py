@@ -5,10 +5,10 @@ from django.http import HttpResponse
 
 from portfolios.models import Portfolio, Asset
 from robinhood.models import Stock, Market
-from helpers.utilities import str_to_duration, mattermost_text, find_instrument
+from helpers.utilities import str_to_duration, mattermost_text
 from chart.chart import Chart
 from chart.chart_data import ChartData
-from quotes.aggregator import quote_and_historicals_aggregate
+from quotes.aggregator import Aggregator
 
 from datetime import datetime, timedelta
 import json
@@ -24,7 +24,9 @@ DATABASE_PRESENT = bool(connection.settings_dict['NAME'])
 
 def get_chart(request, identifiers, span = 'day'):
     span = str_to_duration(span)
-    portfolios = get_portfolios(span, identifiers)
+
+    aggregator = Aggregator()
+    portfolios = get_portfolios(aggregator, identifiers)
 
     # Hide the pricing information for a user portfolio
     hide_value = any([p.pk for p in portfolios])
@@ -42,8 +44,7 @@ def get_chart(request, identifiers, span = 'day'):
 
     start_time, end_time = get_start_and_end_time(market_hours, span)
 
-    # Fetch quotes and historicals
-    quotes, historicals = quote_and_historicals_aggregate(start_time, end_time, *portfolios)
+    quotes, historicals = aggregator.quotes_and_historicals(start_time, end_time)
 
     for chart_data in chart_data_sets:
         chart_data.load(quotes, historicals, start_time, end_time)
@@ -116,7 +117,8 @@ def update_mattermost_chart(request):
     return HttpResponse(json.dumps(chart_response), content_type="application/json")
 
 def mattermost_chart(request, identifiers, span):
-    portfolios = get_portfolios(str_to_duration(span), identifiers)
+    aggregator = Aggregator()
+    portfolios = get_portfolios(aggregator, identifiers)
 
     ids = identifiers.upper()
     # Replace slashes with hyphens for safety
@@ -158,39 +160,39 @@ def mattermost_chart(request, identifiers, span):
     }
     return response
 
-def get_portfolios(span, identifiers):
+def get_portfolios(aggregator, identifiers):
     # Remove duplicates by converting to set (and back)
-    identifiers = list(set(identifiers.upper().split(',')))
+    identifiers = set(identifiers.upper().split(','))
     if len(identifiers) > 10:
         raise BadRequestException("Sorry, you can only quote up to ten stocks/portfolios at a time.")
 
     portfolios = []
-    instruments = []
 
     if DATABASE_PRESENT:
-        for identifier in identifiers:
-            # Check if this is a user portfolio
-            if identifier == 'EVERYONE':
-                for portfolio in Portfolio.objects.all():
-                    if portfolio not in portfolios:
-                        portfolios.append(portfolio)
-            else:
-                if identifier not in [p.name for p in portfolios]:
-                    portfolio = find_portfolio(identifier)
-                    if portfolio:
-                        portfolios.append(portfolio)
-                    else:
-                        # No portfolio with this identifier exists; must be an instrument.
-                        instruments.append(find_instrument(identifier))
-    else:
-        for identifier in identifiers:
-            instruments.append(find_instrument(identifier))
+        # Determine which identifiers, if any, are portfolios
+        if 'EVERYONE' in identifiers:
+            for portfolio in Portfolio.objects.all():
+                portfolios.append(portfolio)
+                identifiers.discard(portfolio.name)
+            identifiers.discard('EVERYONE')
+        else:
+            for identifier in list(identifiers):
+                portfolio = find_portfolio(identifier)
+                if portfolio:
+                    portfolios.append(portfolio)
+                    identifiers.discard(identifier)
 
-    # Wrap each of the remaining instruments in its own portfolio
-    for instrument in instruments:
+    # Load instruments for all portfolio assets and identifiers
+    aggregator.load_instruments(*portfolios, *identifiers)
+
+    is_single_instrument = (len(identifiers) == 1 and not portfolios)
+
+    # Wrap each of the remaining non-portfolio instruments in its own portfolio
+    for identifier in identifiers:
+        instrument = aggregator.get_instrument(identifier)
         # Use the full name if this instrument is the only thing being quoted
         # Otherwise use its identifier name
-        if len(instruments) == 1 and not portfolios:
+        if is_single_instrument:
             portfolio_name = instrument.full_name()
         else:
             portfolio_name = instrument.identifier()

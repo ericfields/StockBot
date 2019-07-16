@@ -1,116 +1,198 @@
 from portfolios.models import Portfolio, Asset
 from robinhood.models import Stock, Option, Instrument
-from quotes.stock_handler import StockHandler
-from quotes.option_handler import OptionHandler
-from multiprocessing.pool import ThreadPool
-import re
+from robinhood.stock_handler import StockHandler
+from robinhood.option_handler import OptionHandler
+from exceptions import BadRequestException, NotFoundException
+from helpers.pool import Pool
 import logging
-
-"""Extracts instruments from multiple stocks/options/portfolios and combines them into
-a single query to send to Robinhood API for quote/historical data.
-"""
-
-pool = ThreadPool(processes=10)
 
 logger = logging.getLogger('stockbot')
 
-def quote_and_historicals_aggregate(start_time, end_time, *securities):
-    instruments = extract_instruments(*securities)
+"""Extracts instruments from multiple stocks/options/portfolios and combines them into
+batch queries to send to Robinhood API for instruments, quotes, and historical data.
+"""
+class Aggregator:
+    stock_handler = StockHandler()
+    option_handler = OptionHandler()
+    pool = Pool(4)
 
-    historical_params = Instrument.historical_params(start_time, end_time)
+    def __init__(self, *items):
+        self.instrument_map = {}
+        self.quotes_map = {}
+        self.historicals_map = {}
 
-    quotes, historicals = fetch_data(instruments, historical_params)
+        self.instruments_loaded = False
+        self.quotes_loaded = False
+        self.historicals_loaded = False
 
-    instrument_map = {i.instrument_url():i for i in instruments}
+        if items:
+            self.load_instruments(*items)
 
-    quote_map = {}
-    historicals_map = {}
-    for q in quotes:
-        if q.instrument in instrument_map:
-            instrument = instrument_map[q.instrument]
-            quote_map[instrument.id] = q
-    for h in historicals:
-        if h.instrument in instrument_map:
-            instrument = instrument_map[h.instrument]
-            historicals_map[instrument.id] = h
+    def load_instruments(self, *items):
+        self.stock_identifiers = set()
+        self.option_identifiers = set()
 
-    return quote_map, historicals_map
+        self.set_identifiers_to_load(items)
 
-def quote_aggregate(*securities):
-    instruments = extract_instruments(*securities)
+        if self.stock_identifiers:
+            stocks = self.stock_handler.find_instruments(*self.stock_identifiers)
+            self.instrument_map.update(stocks)
+        if self.option_identifiers:
+            options = self.option_handler.find_instruments(*self.option_identifiers)
+            self.instrument_map.update(options)
 
-    quotes = fetch_data(instruments)
+        self.instruments_loaded = True
 
-    instrument_map = {i.instrument_url():i for i in instruments}
+        # Allow quotes/historicals to be reloaded when instruments are reloaded
+        self.quotes_loaded = False
+        self.historicals_loaded = False
 
-    quote_map = {}
-    for q in quotes:
-        if q.instrument in instrument_map:
-            instrument = instrument_map[q.instrument]
-        quote_map[instrument.id] = q
+        return self.instrument_map
 
-    return quote_map
+    def get_instrument(self, item):
+        if not self.instruments_loaded:
+            raise Exception("Instruments have not yet been loaded for this aggregator.")
 
-def fetch_data(instruments, historical_params=None):
-    stock_urls, option_urls = get_instrument_urls(instruments)
+        if type(item) in [Stock, Option]:
+            return item
 
-    quote_result_set = []
-    historicals_result_set = []
-    if stock_urls:
-        quote_result_set.append(async_call(Stock.Quote.search, instruments=stock_urls))
-        if historical_params:
-            historicals_result_set.append(async_call(Stock.Historicals.search, instruments=stock_urls, **historical_params))
-    if option_urls:
-        quote_result_set.append(async_call(Option.Quote.search, instruments=option_urls))
-        if historical_params:
-            historicals_result_set.append(async_call(Option.Historicals.search, instruments=option_urls, **historical_params))
-
-    quotes = [q for quotes in quote_result_set for q in quotes.get()]
-    if not historical_params:
-        return quotes
-
-    historicals = [h for historicals in historicals_result_set for h in historicals.get()]
-
-    return quotes, historicals
-
-def get_instrument_urls(instruments):
-    stock_urls, option_urls = set(), set()
-    for instrument in instruments:
-        # Don't fetch quotes for untradeable instruments
-        if type(instrument) == Stock and instrument.state == 'inactive':
-            logger.info("Inactive instrument, ignoring price data: " + instrument.identifier())
-            continue
-
-        if type(instrument) == Stock:
-            stock_urls.add(instrument.instrument_url())
-        elif type(instrument) == Option:
-            option_urls.add(instrument.instrument_url())
-
-    return list(stock_urls), list(option_urls)
-
-def extract_instruments(*securities):
-    instruments = []
-    for security in securities:
-        security_type = type(security)
-        if security_type == Portfolio:
-            for asset in security.assets():
-                instruments.append(asset.instrument())
-        elif security_type == Asset:
-            instruments.append(security.instrument())
-        elif security_type == Stock or security_type == Option:
-            instruments.append(security)
-        elif security_type == str:
-            if StockHandler.valid_identifier(security):
-                handler = StockHandler
-            elif OptionHandler.valid_identifier(security):
-                handler = OptionHandler
-            else:
-                raise Exception("String is not a valid stock/option: '{}'".format(security))
-            instruments.append(handler.search_for_instrument(security))
+        if type(item) == Asset:
+            identifier = item.instrument_url or Aggregator.get_identifier(item.identifier)
+        elif type(item) == str:
+            identifier = Aggregator.get_identifier(item)
         else:
-            raise Exception("Invalid security type: {}".format(security_type))
+            raise Exception("Cannot fetch instrument for type: {}".format(type(item)))
 
-    return instruments
+        if identifier not in self.instrument_map:
+            raise Exception("Instrument has not been loaded for {}".format(identifier))
 
-def async_call(method, *args, **kwargs):
-    return pool.apply_async(method, tuple(args), kwargs)
+        return self.instrument_map[identifier]
+
+    def instruments(self):
+        if not self.instruments_loaded:
+            raise Exception("Instruments have not yet been loaded for this aggregator.")
+
+        return self.instrument_map
+
+    def quotes_and_historicals(self, start_time, end_time):
+        if not self.instruments_loaded:
+            raise Exception("Instruments have not yet been loaded for this aggregator.")
+
+        if not (self.quotes_loaded and self.historicals_loaded):
+            historical_params = Instrument.historical_params(start_time, end_time)
+
+            self.quotes_map, self.historicals_map = self.fetch_quotes_and_historicals(historical_params)
+
+            self.quotes_loaded = True
+            self.historicals_loaded = True
+
+        return self.quotes_map, self.historicals_map
+
+    def quotes(self):
+        if not self.instruments_loaded:
+            raise Exception("Instruments have not yet been loaded for this aggregator.")
+
+        if not self.quotes_loaded:
+            self.quotes_map = self.fetch_quotes_and_historicals()
+
+            self.quotes_loaded = True
+
+        return self.quotes_map
+
+    def fetch_quotes_and_historicals(self, historical_params=None):
+        stock_urls = set()
+        option_urls = set()
+
+        for identifier in self.instrument_map:
+            # Use the URLs only
+            if identifier.startswith('http'):
+                url = identifier
+                if type(self.instrument_map[url]) == Option:
+                    option_urls.add(url)
+                else:
+                    stock_urls.add(url)
+        quote_result_set = []
+        historicals_result_set = []
+        if stock_urls:
+            quote_result_set.append(self.pool.call(Stock.Quote.search, instruments=stock_urls))
+            if historical_params:
+                historicals_result_set.append(self.pool.call(Stock.Historicals.search, instruments=stock_urls, **historical_params))
+        if option_urls:
+            quote_result_set.append(self.pool.call(Option.Quote.search, instruments=option_urls))
+            if historical_params:
+                historicals_result_set.append(self.pool.call(Option.Historicals.search, instruments=option_urls, **historical_params))
+
+        quotes_map = {}
+        historicals_map = {}
+
+        for quote_set in quote_result_set:
+            for quote in quote_set.get():
+                instrument = self.instrument_map[quote.instrument]
+                quotes_map[instrument.url] = quote
+                quotes_map[instrument.identifier()] = quote
+
+        # Set extra identifiers as needed
+        for identifier in self.instrument_map:
+            instrument = self.instrument_map[identifier]
+            if instrument.url in quotes_map:
+                quotes_map[identifier] = quotes_map[instrument.url]
+
+        if not historical_params:
+            return quotes_map
+
+        for historicals_set in historicals_result_set:
+            for historicals in historicals_set.get():
+                instrument = self.instrument_map[historicals.instrument]
+                historicals_map[instrument.url] = historicals
+                historicals_map[instrument.identifier()] = historicals
+
+        for identifier in self.instrument_map:
+            instrument = self.instrument_map[identifier]
+            if instrument.url in historicals_map:
+                historicals_map[identifier] = historicals_map[instrument.url]
+
+        return quotes_map, historicals_map
+
+
+    def get_identifier(item):
+        if type(item) == str:
+            identifier = item
+        elif type(item) == Asset:
+            identifier = item.identifier or item.instrument_url
+        elif type(item) in [Stock, Option]:
+            identifier = item.identifier()
+        else:
+            raise Exception("Cannot compute an asset identifier for type {}".format(type(item)))
+
+        for handler in [Aggregator.stock_handler, Aggregator.option_handler]:
+            if handler.valid_url(identifier):
+                return identifier
+            elif handler.valid_identifier(identifier):
+                return handler.standard_identifier(identifier)
+
+        raise Exception("Invalid identifier: {}".format(identifier))
+
+    def set_identifiers_to_load(self, items):
+        for item in items:
+            if type(item) in [Stock, Option]:
+                self.instrument_map[item.url] = item
+                self.instrument_map[item.identifier()] = item
+                continue
+
+            if type(item) == Portfolio:
+                self.set_identifiers_to_load(item.assets())
+                continue
+
+            if type(item) == Asset:
+                identifier = item.instrument_url
+            elif type(item) == str:
+                identifier = item
+            else:
+                raise Exception("Cannot determine identifier for {}".format(item.__class__.__name__))
+
+            if self.stock_handler.valid_identifier(identifier):
+                self.stock_identifiers.add(identifier)
+            elif self.option_handler.valid_identifier(identifier):
+                self.option_identifiers.add(identifier)
+            else:
+                raise BadRequestException("Invalid stock/option: '{}'".format(identifier))

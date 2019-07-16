@@ -7,13 +7,18 @@ import json
 from threading import Lock
 from time import sleep
 import hashlib
+import logging
 
 from django.core.cache import cache
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
+logger = logging.getLogger('stockbot')
+
 class ApiModel():
     attributes = {}
+    data = {}
+
     username = None
     password = None
     oauth_client_id = None
@@ -30,6 +35,7 @@ class ApiModel():
 
 
     def __init__(self, **data):
+        self.data = data
         self.__assign_attributes(data)
 
     def __assign_attributes(self, data):
@@ -74,12 +80,6 @@ class ApiModel():
         else:
             return attr_type(val)
 
-    def data(self):
-        attrs = {}
-        for attr in self.attributes:
-            attrs[attr] = getattr(self, attr)
-        return attrs
-        
 class ApiCallException(Exception):
     code = None
     body = None
@@ -264,8 +264,8 @@ class ApiResource(ApiModel):
             for key in params:
                 # convert list parameters to comma-separated strings
                 val = params[key]
-                if type(val) == list:
-                    val = ','.join(val)
+                if type(val) == list or type(val) == set:
+                    val = ','.join(str(v) for v in val)
                 elif isinstance(val, ApiModel):
                     val = val.url
                 param_strs.append("{}={}".format(key, val))
@@ -273,9 +273,9 @@ class ApiResource(ApiModel):
             resource_url += '?' + '&'.join(param_strs)
         if cls.cached:
             # Check if we have a cache hit first
-            response = cache.get(cls.cache_key(resource_url))
-            if response:
-                return response.json()
+            data = cache.get(cls.cache_key(resource_url))
+            if data:
+                return data
 
         headers = {}
 
@@ -294,16 +294,17 @@ class ApiResource(ApiModel):
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
                 if attempts > 0:
-                    print("Warning: Connection error, retrying")
+                    logger.warn("Warning: Connection error, retrying")
                 else:
                     raise ApiInternalErrorException(0, "Repeated connection errors when trying to call Robinhood")
                 continue
 
             if response.status_code == 200:
+                data = response.json()
                 if cls.cached:
                     # Cache response. Only successful calls are cached.
-                    cache.set(cls.cache_key(resource_url), response)
-                return response.json()
+                    cache.set(cls.cache_key(resource_url), data)
+                return data
             elif response.status_code == 400:
                 message = "{} (request URL: {})".format(response.text, resource_url)
                 raise ApiBadRequestException(message)
@@ -334,11 +335,32 @@ class ApiResource(ApiModel):
                 raise ApiCallException(response.status_code, response.text)
 
     @classmethod
+    def base_url(cls):
+        return ROBINHOOD_ENDPOINT + cls.endpoint_path + "/"
+
+    @classmethod
     def resource_url(cls, resource_id = None):
-        resource_url = ROBINHOOD_ENDPOINT + cls.endpoint_path + "/"
+        url = cls.base_url()
         if resource_id:
-            resource_url += "{}/".format(resource_id)
-        return resource_url
+            url += "{}/".format(resource_id)
+        return url
+
+    @classmethod
+    def search_url(cls, **params):
+        url = cls.base_url()
+        if params:
+            param_strs = []
+            for key in params:
+                # convert list parameters to comma-separated strings
+                val = params[key]
+                if type(val) in [list, set]:
+                    val = ','.join(list(val))
+                elif isinstance(val, ApiModel):
+                    val = val.url
+                param_strs.append("{}={}".format(key, val))
+
+            url += '?' + '&'.join(param_strs)
+        return url
 
     @classmethod
     def cache_key(cls, key_str):
