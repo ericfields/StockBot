@@ -1,4 +1,4 @@
-from helpers.cache import Cache
+from helpers.cache import LongCache
 from helpers.pool import Pool
 from robinhood.api import ApiResource
 from exceptions import ConfigurationException, BadRequestException, NotFoundException
@@ -90,7 +90,7 @@ class InstrumentHandler():
 
         for url in get_params:
             # Check if instrument is in the cache before querying Robinhood
-            data = Cache.get(url)
+            data = LongCache.get(url)
             if data:
                 instrument = self.instrument_class()(**data)
                 self.set_instrument(instrument_map, instrument)
@@ -105,9 +105,9 @@ class InstrumentHandler():
                 self.set_instrument(instrument_map, instrument)
 
                 # Cache results of both a resource get and a search query
-                Cache.set(instrument.url, instrument.data)
+                LongCache.set(instrument.url, instrument.data)
                 search_url = self.build_search_url(self.get_search_params(instrument.identifier()))
-                Cache.set(search_url, {'results': [instrument.data]})
+                LongCache.set(search_url, {'results': [instrument.data]})
 
     def search_instruments(self, instrument_map, search_params):
         search_jobs = {}
@@ -117,7 +117,7 @@ class InstrumentHandler():
             params = search_params[identifier]
             search_url = self.build_search_url(params)
 
-            data = Cache.get(search_url)
+            data = LongCache.get(search_url)
             if data:
                 if 'results' in data:
                     cached_instruments = [self.instrument_class()(**d) for d in data['results']]
@@ -140,7 +140,7 @@ class InstrumentHandler():
             search_url = self.build_search_url(params)
 
             # Cache results for the search query
-            Cache.set(search_url, {'results': [ i.data for i in retrieved_instruments ]})
+            LongCache.set(search_url, {'results': [ i.data for i in retrieved_instruments ]})
 
             matching_instruments = self.filter_results(retrieved_instruments, params)
 
@@ -153,7 +153,7 @@ class InstrumentHandler():
             self.set_instrument(instrument_map, instrument, identifier)
 
             # Cache results for the resource query
-            Cache.set(instrument.url, instrument.data)
+            LongCache.set(instrument.url, instrument.data)
 
     def set_instrument(self, instrument_map, instrument, identifier=None):
         instrument_map[instrument.identifier()] = instrument

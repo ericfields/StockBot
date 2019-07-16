@@ -8,8 +8,7 @@ from threading import Lock
 from time import sleep
 import hashlib
 import logging
-
-from django.core.cache import cache
+from time import time
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
@@ -119,7 +118,7 @@ class ApiResource(ApiModel):
     api_endpoint = ROBINHOOD_ENDPOINT
     endpoint_path = ''
     authenticated = False
-    cached = False
+    cache = None
 
     # State variable to set while we are renewing our auth credentials
     auth_lock = Lock()
@@ -271,9 +270,9 @@ class ApiResource(ApiModel):
                 param_strs.append("{}={}".format(key, val))
 
             resource_url += '?' + '&'.join(param_strs)
-        if cls.cached:
+        if cls.cache:
             # Check if we have a cache hit first
-            data = cache.get(cls.cache_key(resource_url))
+            data = cls.cache.get(resource_url)
             if data:
                 return data
 
@@ -290,7 +289,9 @@ class ApiResource(ApiModel):
         while True:
             attempts -= 1
             try:
+                start_time = time()
                 response = requests.get(resource_url, headers=headers)
+                #print("{}s: {}".format(time() - start_time, resource_url))
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
                 if attempts > 0:
@@ -301,9 +302,9 @@ class ApiResource(ApiModel):
 
             if response.status_code == 200:
                 data = response.json()
-                if cls.cached:
+                if cls.cache:
                     # Cache response. Only successful calls are cached.
-                    cache.set(cls.cache_key(resource_url), data)
+                    cls.cache.set(resource_url, data)
                 return data
             elif response.status_code == 400:
                 message = "{} (request URL: {})".format(response.text, resource_url)
@@ -361,12 +362,6 @@ class ApiResource(ApiModel):
 
             url += '?' + '&'.join(param_strs)
         return url
-
-    @classmethod
-    def cache_key(cls, key_str):
-        m = hashlib.md5()
-        m.update(str.encode(key_str))
-        return m.hexdigest()
 
     # Enable iteration through the individual items if present
     def __iter__(self):

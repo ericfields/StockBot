@@ -1,6 +1,7 @@
 from robinhood.api import ApiModel, ApiResource
 from datetime import datetime, timedelta
 from pytz import timezone
+from helpers.cache import ShortCache, LongCache
 
 class Authentication(ApiResource):
     endpoint_path = "/api-token-auth"
@@ -24,10 +25,10 @@ class NotImplementedException(Exception):
 
 class Market(ApiResource):
     endpoint_path = "/markets"
-    cached = True
+    cache = LongCache
 
     class Hours(ApiResource):
-        cached = True
+        cache = LongCache
         attributes = {
             'opens_at': datetime,
             'closes_at': datetime,
@@ -116,7 +117,7 @@ class Instrument(ApiResource):
 
 class Stock(Instrument):
     endpoint_path = "/instruments"
-    cached = True
+    cache = LongCache
 
     class Quote(ApiResource):
         endpoint_path = "/quotes"
@@ -134,7 +135,7 @@ class Stock(Instrument):
 
     class Fundamentals(ApiResource):
         endpoint_path = "/fundamentals"
-        cached = True
+        cache = LongCache
         attributes = {
             'description': str
         }
@@ -142,7 +143,7 @@ class Stock(Instrument):
     class Historicals(ApiResource):
         endpoint_path = "/quotes/historicals"
         authenticated = True
-        cached = True
+        cache = ShortCache
 
         attributes = {
             'previous_close_price': float,
@@ -185,7 +186,7 @@ class Stock(Instrument):
 
 class Option(Instrument):
     endpoint_path = "/options/instruments"
-    cached = True
+    cache = LongCache
     attributes = {
         'id': str,
         'issue_date': datetime,
@@ -214,7 +215,7 @@ class Option(Instrument):
     class Historicals(ApiResource):
         endpoint_path = "/marketdata/options/historicals"
         authenticated = True
-        cached = True
+        cache = ShortCache
 
         attributes = {
             'instrument': str
