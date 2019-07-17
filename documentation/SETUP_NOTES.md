@@ -40,27 +40,9 @@ To install:
 pip install uwsgi
 ```
 
-In your StockBot project directory, create a file `uwsgi_params` with the following contents:
-```
-uwsgi_param  QUERY_STRING       $query_string;
-uwsgi_param  REQUEST_METHOD     $request_method;
-uwsgi_param  CONTENT_TYPE       $content_type;
-uwsgi_param  CONTENT_LENGTH     $content_length;
+You will need a `uwsgi_params` file to run uwsgi. A file with sensible defaults is present in this project at [uwsgi_params](../uwsgi_params).
 
-uwsgi_param  REQUEST_URI        $request_uri;
-uwsgi_param  PATH_INFO          $document_uri;
-uwsgi_param  DOCUMENT_ROOT      $document_root;
-uwsgi_param  SERVER_PROTOCOL    $server_protocol;
-uwsgi_param  REQUEST_SCHEME     $scheme;
-uwsgi_param  HTTPS              $https if_not_empty;
-
-uwsgi_param  REMOTE_ADDR        $remote_addr;
-uwsgi_param  REMOTE_PORT        $remote_port;
-uwsgi_param  SERVER_PORT        $server_port;
-uwsgi_param  SERVER_NAME        $server_name;
-```
-
-You then start your application using uwsgi instead of Django's runserver. To start on port 8000, from the StockBot project directory:
+You can then start your application using uwsgi instead of Django's runserver. To start on port 8000, from the StockBot project directory:
 ```
 uwsgi --module StockBot.wsgi --socket :8000
 ```
@@ -72,51 +54,14 @@ uwsgi --module StockBot.wsgi --socket StockBot.sock
 
 #### uWSGI configuration file
 
-You can specify options for running StockBot with uWSGI in a .ini file.
-
-Create `uwsgi.ini` with following contents, adjusted as you wish:
-
-```
-[uwsgi]
-
-# Django-related settings
-
-# the base directory (full path to StockBot project directory)
-chdir           = /path/to/StockBot
-# Django's wsgi file
-module          = StockBot.wsgi
-
-# process-related settings
-
-# master
-master          = true
-
-# maximum number of worker processes
-processes       = 10
-
-# the socket; define a port with :portnum, or path to Unix socket if using one
-socket            = :8000
-# socket          = /path/to/StockBot.sock
-
-# ... with appropriate permissions - may be needed for Unix sockets
-# chmod-socket    = 664
-
-# Set this value to run StockBot as a daemon.
-# This will also define the log file for StockBot's output.
-# If daemonizing, you should also define a pidfile that can be referenced to stop the service.
-# daemonize = /tmp/StockBot.log
-# safe-pidfile = /tmp/StockBot.pid
-
-# clear environment on exit
-vacuum          = true
-```
+Instead of having to specify uWSGI options on the command line for every run, you can set these options in a .ini file. A sample file with sensible defaults is present at [uwsgi.ini](../uwsgi.ini). It is configured to run StockBot on port 8000 by default. Feel free to view the settings in this file and modify them as desired.
 
 You can then run StockBot with these configurations as follows:
 ```
 uwsgi --ini uwsgi.ini
 ```
 
-If daemonizing StockBot, to stop the server:
+If daemonizing StockBot, to stop the server (using the safe-pidfile option configured in the default [uwsgi.ini](../uwsgi.ini)):
 ```
 kill -INT `cat /tmp/StockBot.pid`
 ```
@@ -145,7 +90,7 @@ You can then start/stop nginx as follows:
 
 The default configuration file will be located at `/etc/nginx/nginx.conf`. You *could* modify this file directly, though the following pattern is generally more advisable:
 
-1. In your StockBot project directory, create a file called `nginx.conf` with the following contents, tweaked as necessary:
+1. Define a `nginx.conf` file in the root of your StockBot project directory. A file with sensible defaults is already present at [nginx.conf](../nginx.conf). Feel free to tweak it as necessary.
 ```
 # the upstream component nginx needs to connect to
 upstream django {
@@ -187,6 +132,10 @@ uwsgi --module StockBot.wsgi --socket :8000
 or to use a Unix socket:
 ```
 uwsgi --module StockBot.wsgi --socket StockBot.sock
+```
+or to use the options defined in a .ini file:
+```
+uwsgi --ini uwsgi.ini
 ```
 
 4. Restart nginx:
@@ -236,7 +185,7 @@ server {
 
 ## Configuring a database
 
-Portfolios are stored within a database. In order to use the Portfolios feature, you must configure a database for the bot. See [Databases in Django](https://docs.djangoproject.com/en/2.2/ref/databases/) for guidance on configuring a database. You would configure these database settings in the StockBot [settings.py](settings.py) file.
+Portfolios are stored within a database. In order to use the Portfolios feature, you must configure a database for the bot. See [Databases in Django](https://docs.djangoproject.com/en/2.2/ref/databases/) for guidance on configuring a database. You would configure these database settings in the StockBot [database_settings.py](database_settings.py) file.
 
 ### Sample Database Configuration - PostgreSQL
 
@@ -267,7 +216,7 @@ You can install the `pscopg2-binary` for Python as follows:
 pip install psycopg2-binary
 ```
 
-You can then configure the settings for this database in the Stockbot [settings.py](StockBot/settings.py) file by uncommenting the following section:
+You can then configure the settings for this database in the Stockbot [database_settings.py](../StockBot/database_settings.py) file by uncommenting the following section:
 
 ```
 DATABASES = {
