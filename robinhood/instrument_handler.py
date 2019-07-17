@@ -54,8 +54,6 @@ class InstrumentHandler():
 
     UUID_FORMAT = '.*\/?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$'
 
-    pool = Pool(4)
-
     def find_instruments(self, *identifiers):
         if self.authenticated():
             self.check_authentication()
@@ -112,6 +110,11 @@ class InstrumentHandler():
     def search_instruments(self, instrument_map, search_params):
         search_jobs = {}
 
+        # Initiate a thread pool for these requests.
+        # Using a shared thread pool can cause hanging
+        # when using a multi-process runner such as uwsgi.
+        pool = Pool(10)
+
         for identifier in search_params:
             instrument = None
             params = search_params[identifier]
@@ -131,7 +134,7 @@ class InstrumentHandler():
             if instrument:
                 self.set_instrument(instrument_map, instrument, identifier)
             else:
-                search_jobs[identifier] = self.pool.call(self.instrument_class().search, **params)
+                search_jobs[identifier] = pool.call(self.instrument_class().search, **params)
 
         for identifier in search_jobs:
             params = search_params[identifier]
