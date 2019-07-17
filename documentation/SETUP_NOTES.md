@@ -90,7 +90,7 @@ You can then start/stop nginx as follows:
 
 The default configuration file will be located at `/etc/nginx/nginx.conf`. You *could* modify this file directly, though the following pattern is generally more advisable:
 
-1. Define a `nginx.conf` file in the root of your StockBot project directory. A file with sensible defaults is already present at [nginx.conf](../nginx.conf). Feel free to tweak it as necessary.
+1. Define a `nginx.conf` file in the root of your StockBot project directory. Below is a sample file's contents; tweak it as necessary.
 ```
 # the upstream component nginx needs to connect to
 upstream django {
@@ -105,9 +105,6 @@ server {
     # the domain name it will serve for
     server_name mystockbot.com; # substitute your machine's IP address or FQDN
     charset     utf-8;
-
-    # max upload size
-    client_max_body_size 75M;   # adjust to taste
 
     # Finally, send all non-media requests to the Django server.
     location / {
