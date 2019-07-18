@@ -3,7 +3,7 @@ from robinhood.models import Stock, Option, Instrument
 from robinhood.stock_handler import StockHandler
 from robinhood.option_handler import OptionHandler
 from exceptions import BadRequestException, NotFoundException
-from helpers.pool import Pool
+from helpers.pool import thread_pool
 import logging
 
 logger = logging.getLogger('stockbot')
@@ -102,11 +102,6 @@ class Aggregator:
         stock_urls = set()
         option_urls = set()
 
-        # Instantiate a thread pool for these requests.
-        # Using a shared thread pool can cause hanging
-        # when using a multi-process runner such as uwsgi.
-        pool = Pool(4)
-
         for identifier in self.instrument_map:
             # Use the URLs only
             if identifier.startswith('http'):
@@ -117,14 +112,16 @@ class Aggregator:
                     stock_urls.add(url)
         quote_result_set = []
         historicals_result_set = []
-        if stock_urls:
-            quote_result_set.append(pool.call(Stock.Quote.search, instruments=stock_urls))
-            if historical_params:
-                historicals_result_set.append(pool.call(Stock.Historicals.search, instruments=stock_urls, **historical_params))
-        if option_urls:
-            quote_result_set.append(pool.call(Option.Quote.search, instruments=option_urls))
-            if historical_params:
-                historicals_result_set.append(pool.call(Option.Historicals.search, instruments=option_urls, **historical_params))
+
+        with thread_pool(4) as pool:
+            if stock_urls:
+                quote_result_set.append(pool.call(Stock.Quote.search, instruments=stock_urls))
+                if historical_params:
+                    historicals_result_set.append(pool.call(Stock.Historicals.search, instruments=stock_urls, **historical_params))
+            if option_urls:
+                quote_result_set.append(pool.call(Option.Quote.search, instruments=option_urls))
+                if historical_params:
+                    historicals_result_set.append(pool.call(Option.Historicals.search, instruments=option_urls, **historical_params))
 
         quotes_map = {}
         historicals_map = {}

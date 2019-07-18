@@ -1,5 +1,5 @@
 from helpers.cache import LongCache
-from helpers.pool import Pool
+from helpers.pool import thread_pool
 from robinhood.api import ApiResource
 from exceptions import ConfigurationException, BadRequestException, NotFoundException
 import re
@@ -113,28 +113,27 @@ class InstrumentHandler():
         # Initiate a thread pool for these requests.
         # Using a shared thread pool can cause hanging
         # when using a multi-process runner such as uwsgi.
-        pool = Pool(10)
+        with thread_pool(10) as pool:
+            for identifier in search_params:
+                instrument = None
+                params = search_params[identifier]
+                search_url = self.build_search_url(params)
 
-        for identifier in search_params:
-            instrument = None
-            params = search_params[identifier]
-            search_url = self.build_search_url(params)
+                data = LongCache.get(search_url)
+                if data:
+                    if 'results' in data:
+                        cached_instruments = [self.instrument_class()(**d) for d in data['results']]
+                        if len(cached_instruments) > 1:
+                            cached_instruments = self.filter_results(cached_instruments, params)
+                        if len(cached_instruments) == 1:
+                            instrument = cached_instruments[0]
+                    else:
+                        instrument = self.instrument_class()(**data)
 
-            data = LongCache.get(search_url)
-            if data:
-                if 'results' in data:
-                    cached_instruments = [self.instrument_class()(**d) for d in data['results']]
-                    if len(cached_instruments) > 1:
-                        cached_instruments = self.filter_results(cached_instruments, params)
-                    if len(cached_instruments) == 1:
-                        instrument = cached_instruments[0]
+                if instrument:
+                    self.set_instrument(instrument_map, instrument, identifier)
                 else:
-                    instrument = self.instrument_class()(**data)
-
-            if instrument:
-                self.set_instrument(instrument_map, instrument, identifier)
-            else:
-                search_jobs[identifier] = pool.call(self.instrument_class().search, **params)
+                    search_jobs[identifier] = pool.call(self.instrument_class().search, **params)
 
         for identifier in search_jobs:
             params = search_params[identifier]
