@@ -25,7 +25,7 @@ class InstrumentHandler():
         """class: Robinhood instrument class this handler is used for."""
         raise Exception("Not implemented")
 
-    def get_get_search_params(self, identifier):
+    def get_search_params(self, identifier):
         """dict: Given an identifier, returns a dictionary of parameters which should be used to
         make a search request to Robinhood for a single resource matching this identifier's
         parameters."""
