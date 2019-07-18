@@ -7,25 +7,24 @@ logger = logging.getLogger('stockbot')
 
 class ChartData():
 
-    def __init__(self, portfolio):
-        self.portfolio = portfolio
+    def __init__(self, index):
+        self.index = index
 
     def load(self, quotes, historicals, start_time, end_time):
-        self.name = self.portfolio.name
+        self.name = self.index.name
 
         # Remove any assets without historical data, i.e. missing or delisted assets
         assets = []
-        for asset in self.portfolio.assets():
+        for asset in self.index.assets():
             if asset.instrument_url in historicals:
                 assets.append(asset)
             elif asset.instrument_url in quotes:
-                logger.info("'{}' has likely been bought out or acquired. Treating as cash.".format(asset.identifier))
-                self.portfolio.cash += quotes[asset.instrument_url].price() * asset.count * asset.unit_count()
+                logger.info("'{}' has likely been bought out or acquired, ignoring.".format(asset.identifier))
             else:
                 logger.warning("No data exists for stock/option '{}'".format(asset.identifier))
 
         # Get current price quote concurrently in a separate thread to save time
-        self.current_price = self.__get_portfolio_current_value(assets, quotes)
+        self.current_price = self.__get_index_current_value(assets, quotes)
 
         self.reference_price = self.__get_reference_price(assets, historicals)
 
@@ -34,8 +33,8 @@ class ChartData():
 
         self.updated_at = datetime.now()
 
-    def __get_portfolio_current_value(self, assets, quotes):
-        current_value = self.portfolio.cash
+    def __get_index_current_value(self, assets, quotes):
+        current_value = 0
         for asset in assets:
             asset_quote = quotes[asset.instrument_url]
             current_value += asset_quote.price() * asset.count * asset.unit_count()
@@ -43,7 +42,7 @@ class ChartData():
         return current_value
 
     def __get_reference_price(self, assets, historicals):
-        reference_price = self.portfolio.cash
+        reference_price = 0
 
         for asset in assets:
             asset_historicals = historicals[asset.instrument_url]
@@ -72,6 +71,6 @@ class ChartData():
             for h in asset_historicals.items:
                 if start_time <= h.begins_at <= end_time:
                     if h.begins_at not in chart_price_map:
-                        chart_price_map[h.begins_at] = self.portfolio.cash
+                        chart_price_map[h.begins_at] = 0
                     chart_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
         return chart_price_map

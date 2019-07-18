@@ -1,4 +1,4 @@
-from portfolios.models import Portfolio, Asset
+from indexes.models import Index, Asset
 from robinhood.models import Stock, Option, Instrument
 from robinhood.stock_handler import StockHandler
 from robinhood.option_handler import OptionHandler
@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger('stockbot')
 
-"""Extracts instruments from multiple stocks/options/portfolios and combines them into
+"""Extracts instruments from multiple stocks/options/indexes and combines them into
 batch queries to send to Robinhood API for instruments, quotes, and historical data.
 """
 class Aggregator:
@@ -185,7 +185,7 @@ class Aggregator:
                 self.instrument_map[item.identifier()] = item
                 continue
 
-            if type(item) == Portfolio:
+            if type(item) == Index:
                 self.set_identifiers_to_load(item.assets())
                 continue
 

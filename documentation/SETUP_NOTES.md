@@ -182,7 +182,7 @@ server {
 
 ## Configuring a database
 
-Portfolios are stored within a database. In order to use the Portfolios feature, you must configure a database for the bot. See [Databases in Django](https://docs.djangoproject.com/en/2.2/ref/databases/) for guidance on configuring a database. You would configure these database settings in the StockBot [database_settings.py](database_settings.py) file.
+Indexes are stored within a database. In order to use the Indexes feature, you must configure a database for the bot. See [Databases in Django](https://docs.djangoproject.com/en/2.2/ref/databases/) for guidance on configuring a database. You would configure these database settings in the StockBot [database_settings.py](database_settings.py) file.
 
 ### Sample Database Configuration - PostgreSQL
 

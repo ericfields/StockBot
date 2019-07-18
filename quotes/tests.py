@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from quotes.aggregator import Aggregator
 from robinhood.models import Instrument
-from portfolios.models import Asset, Portfolio, User
+from indexes.models import Asset, Index, User
 from robinhood.stock_handler import StockHandler
 from robinhood.option_handler import OptionHandler
 from time import sleep
@@ -16,24 +16,24 @@ class QuotesTestCase(TestCase):
         instruments = self.stock_handler.find_instruments('AAPL', 'MSFT', 'AMZN').values()
 
         user = User.objects.create(id='1234', name='testuser')
-        portfolio = Portfolio.objects.create(name='QUOTESA', user_id=user.id)
-        [portfolio.asset_set.create(instrument=i) for i in instruments]
+        index = Index.objects.create(name='QUOTESA', user_id=user.id)
+        [index.asset_set.create(instrument=i) for i in instruments]
         self.client = Client()
 
     def test_stock_quote(self):
         response = self.client.get('/quotes/view/AMZN')
         self.assertEquals(200, response.status_code)
 
-    def test_portfolio_quote(self):
-        response = self.client.post('/portfolios/', {'user_id': 'test', 'user_name': 'test', 'text': 'create TEST AAPL:1 AMZN:2'})
+    def test_index_quote(self):
+        response = self.client.post('/indexes/', {'user_id': 'test', 'user_name': 'test', 'text': 'create TEST AAPL:1 AMZN:2'})
         self.assertContains(response, 'TEST')
         self.assertContains(response, 'AAPL')
         self.assertContains(response, 'AMZN')
         response = self.client.get('/quotes/view/TEST')
         self.assertEquals(200, response.status_code)
 
-    def test_empty_portfolio_quote(self):
-        response = self.client.post('/portfolios/', {'user_id': 'test', 'user_name': 'test', 'text': 'create EMPTY'})
+    def test_empty_index_quote(self):
+        response = self.client.post('/indexes/', {'user_id': 'test', 'user_name': 'test', 'text': 'create EMPTY'})
         self.assertContains(response, 'EMPTY')
         response = self.client.get('/quotes/view/EMPTY')
         self.assertEquals(200, response.status_code)
@@ -49,6 +49,8 @@ class AggregatorTestCase(TestCase):
         self.instruments = {}
         self.instruments.update(self.stock_handler.find_instruments(*stock_identifiers))
         self.instruments.update(self.option_handler.find_instruments(*option_identifiers))
+
+        self.test_user = User.objects.create(id='testuser')
 
         self.identifiers = stock_identifiers + option_identifiers
 
@@ -68,12 +70,12 @@ class AggregatorTestCase(TestCase):
         quotes = aggregator.quotes()
         self.check_all_present(quotes, assets)
 
-    def test_quotes_with_portfolios(self):
-        portfolio = Portfolio.objects.create(user_id='testuser', name='TEST')
-        [portfolio.asset_set.create(instrument=i) for i in self.instruments.values()]
-        aggregator = Aggregator(portfolio)
+    def test_quotes_with_indexes(self):
+        index = Index.objects.create(user_id='testuser', name='TEST')
+        [index.asset_set.create(instrument=i) for i in self.instruments.values()]
+        aggregator = Aggregator(index)
         quotes = aggregator.quotes()
-        self.check_all_present(quotes, portfolio.assets())
+        self.check_all_present(quotes, index.assets())
 
     def check_all_present(self, results, items):
         identifiers = set()

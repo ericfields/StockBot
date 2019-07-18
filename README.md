@@ -2,8 +2,8 @@
 
 This is an integration for Mattermost which displays up-to-date charts of a stock's performance. It can display charts for options as well.
 
-This bot also supports the ability for users to create and maintain a "portfolio" of
-the assets they own. Users can then display charts with the overall performance of these portfolios, just as they would for a stock.
+This bot also supports the ability for users to create and maintain a "index" of
+stocks and options. Users can then display charts with the overall performance of these indexes, just as they would for a stock.
 
 This service utilizes the (unofficial) [Robinhood API](https://github.com/sanko/Robinhood) to retrieve stock quote information and history.
 
@@ -26,7 +26,7 @@ In order to retrieve stock quote data, you'll need to set the following values i
 `robinhood_password`: Your Robinhood account password
 `robinhood_device_token`: A UUID value which is unique between Robinhood users. This can be obtained by logging into Robinhood via browser or app, and doing a Ctrl+F for "clientId:".
 
-Note that StockBot only uses these credentials to retrieve stock quote data, and does not retrieve or interact with any user-specific information, such as the details of stocks in a user's Robinhood portfolio.
+Note that StockBot only uses these credentials to retrieve stock quote data, and does not retrieve or interact with any user-specific information, such as the details of stocks in a user's Robinhood index.
 
 ### Running StockBot
 
@@ -58,16 +58,16 @@ If you provide a Robinhood username/password, you can also quote options! For ex
 
 See [QUOTES.md](documentation/QUOTES.md) for more info and options for on quoting stocks and options.
 
-### Portfolios
+### Indexes
 
-You can create a custom stock portfolio (just for tracking, not actual buying and selling) and quote its overall value! For example:
+You can create a custom index of stocks and options, and quote its overall value! For example:
 
 ```
-/portfolio create MYSTUFF AAPL:2, AMZN:1
+/index create MYSTUFF AAPL:2, AMZN:1
 /quote MYSTUFF
 ```
 
-Portfolios require a database to be configured. See [PORTFOLIO.md](documentation/PORTFOLIO.md) for more info on enabling Portfolios support, as well as instructions on tracking and quoting portfolios.
+Indexes require a database to be configured. See [INDEX.md](documentation/INDEXES.md) for more info on enabling Index support, as well as instructions on tracking and quoting indexes.
 
 ### News
 

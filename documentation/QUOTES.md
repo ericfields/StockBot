@@ -69,22 +69,22 @@ You can retrieve a chart for multiple options at once, just as you can with stoc
 
 Up to 10 stocks/options can be quoted at once.
 
-### Quoting Portfolios
+### Quoting Indexes
 
-You can quote users' portfolios just as you would a stock.
+You can quote users' indexes just as you would a stock.
 
 `/quote FOLIO`
 
-When quoting portfolios, the actual dollar value of the portfolio is hidden, and
-only the percentage change of the portfolio is displayed. This allows users
-to maintain their portfolio assets accurately without having to worry about other
+When quoting indexes, the actual dollar value of the index is hidden, and
+only the percentage change of the index is displayed. This allows users
+to maintain their index assets accurately without having to worry about other
 users knowing how much money they actually have.
 
-When you quote multiple user portfolios, a different line will be plotted for each portfolio, making it easy for users to compare their performance.
+When you quote multiple user indexes, a different line will be plotted for each index, making it easy for users to compare their performance.
 
 `/quote MYSTUFF,YOURSTUFF`
 
-You can also quote portfolios alongside stocks and options. You can quote up to ten stocks/options/portfolios at once.
+You can also quote indexes alongside stocks and options. You can quote up to ten stocks/options/indexes at once.
 
 `/quote MYSTUFF,YOURSTUFF,AMZN,AAPL`
 

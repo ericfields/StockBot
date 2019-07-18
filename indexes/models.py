@@ -1,9 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator
-import json
 from robinhood.models import Stock, Option
-from datetime import datetime
-from enum import IntEnum
 
 class User(models.Model):
     id = models.CharField(primary_key=True, max_length=64)
@@ -12,19 +9,9 @@ class User(models.Model):
     def __str__(self):
         return self.name
 
-class Portfolio(models.Model):
+class Index(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=14, unique=True)
-    cash = models.FloatField(default=0, validators=[MinValueValidator(0)])
-
-    class Visibility(IntEnum):
-        PRIVATE = 0
-        LISTINGS = 1
-        RATIOS = 2
-        SHARES = 3
-        PUBLIC = 10
-
-    visibility = models.IntegerField(default=Visibility.PRIVATE)
 
     def __init__(self, *args, **kwargs):
         self.tmp_assets = []
@@ -43,14 +30,11 @@ class Portfolio(models.Model):
         return self.name
 
 class Asset(models.Model):
-    portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE)
+    index = models.ForeignKey(Index, on_delete=models.CASCADE)
     instrument_id = models.UUIDField(null=True)
     instrument_url = models.CharField(max_length=160, null=True)
     identifier = models.CharField(max_length=32)
     count = models.FloatField(default=1, validators=[MinValueValidator(0)])
-
-    date_acquired = models.DateTimeField(null=True)
-    date_released = models.DateTimeField(null=True)
 
     instrument_object = None
 
@@ -102,4 +86,4 @@ class Asset(models.Model):
             raise Exception("Cannot determine instrument class: No type specified for this instrument")
 
     def __str__(self):
-        return "{}:{}={}".format(self.portfolio.name, self.identifier, self.count)
+        return "{}:{}={}".format(self.index.name, self.identifier, self.count)

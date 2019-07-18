@@ -3,7 +3,7 @@ from django.views.decorators.cache import cache_page
 from django.urls import reverse
 from django.http import HttpResponse
 
-from portfolios.models import Portfolio, Asset
+from indexes.models import Index, Asset
 from robinhood.models import Stock, Market
 from helpers.utilities import str_to_duration, mattermost_text
 from chart.chart import Chart
@@ -26,15 +26,15 @@ def get_chart(request, identifiers, span = 'day'):
     span = str_to_duration(span)
 
     aggregator = Aggregator()
-    portfolios = get_portfolios(aggregator, identifiers)
+    indexes = get_indexes(aggregator, identifiers)
 
-    # Hide the pricing information for a user portfolio
-    hide_value = any([p.pk for p in portfolios])
+    # Hide the pricing information for a user index
+    hide_value = any([p.pk for p in indexes])
 
-    title = ', '.join([p.name for p in portfolios])
+    title = ', '.join([p.name for p in indexes])
 
-    chart_data_sets = [ChartData(p) for p in portfolios]
-    portfolios = [cd.portfolio for cd in chart_data_sets]
+    chart_data_sets = [ChartData(p) for p in indexes]
+    indexes = [cd.index for cd in chart_data_sets]
 
     market = Market.get(MARKET)
     market_hours = market.hours()
@@ -73,7 +73,7 @@ def get_chart_img(request, img_name):
 def get_mattermost_chart(request):
     body = request.POST.get('text', None)
     if not body:
-        raise BadRequestException("No stocks/options/portfolios specified")
+        raise BadRequestException("No stocks/options/indexes specified")
     parts = body.split()
     identifiers = parts[0].upper()
     if len(parts) > 1:
@@ -118,13 +118,13 @@ def update_mattermost_chart(request):
 
 def mattermost_chart(request, identifiers, span):
     aggregator = Aggregator()
-    portfolios = get_portfolios(aggregator, identifiers)
+    indexes = get_indexes(aggregator, identifiers)
 
     ids = identifiers.upper()
     # Replace slashes with hyphens for safety
     # Slashes could be present in date-formatted string
     ids = ids.replace('/', '-')
-    chart_name = ', '.join([p.name for p in portfolios])
+    chart_name = ', '.join([p.name for p in indexes])
 
     # Add a timestamp to the image name to avoid caching future charts
     timestamp = datetime.now().strftime("%H%M%S")
@@ -160,56 +160,56 @@ def mattermost_chart(request, identifiers, span):
     }
     return response
 
-def get_portfolios(aggregator, identifiers):
+def get_indexes(aggregator, identifiers):
     # Remove duplicates by converting to set (and back)
     identifiers = set(identifiers.upper().split(','))
     if len(identifiers) > 10:
-        raise BadRequestException("Sorry, you can only quote up to ten stocks/portfolios at a time.")
+        raise BadRequestException("Sorry, you can only quote up to ten stocks/indexes at a time.")
 
-    portfolios = []
+    indexes = []
 
     if DATABASE_PRESENT:
-        # Determine which identifiers, if any, are portfolios
+        # Determine which identifiers, if any, are indexes
         if 'EVERYONE' in identifiers:
-            for portfolio in Portfolio.objects.all():
-                portfolios.append(portfolio)
-                identifiers.discard(portfolio.name)
+            for index in Index.objects.all():
+                indexes.append(index)
+                identifiers.discard(index.name)
             identifiers.discard('EVERYONE')
         else:
             for identifier in list(identifiers):
-                portfolio = find_portfolio(identifier)
-                if portfolio:
-                    portfolios.append(portfolio)
+                index = find_index(identifier)
+                if index:
+                    indexes.append(index)
                     identifiers.discard(identifier)
 
-    # Load instruments for all portfolio assets and identifiers
-    aggregator.load_instruments(*portfolios, *identifiers)
+    # Load instruments for all index assets and identifiers
+    aggregator.load_instruments(*indexes, *identifiers)
 
-    is_single_instrument = (len(identifiers) == 1 and not portfolios)
+    is_single_instrument = (len(identifiers) == 1 and not indexes)
 
-    # Wrap each of the remaining non-portfolio instruments in its own portfolio
+    # Wrap each of the remaining non-index instruments in its own index
     for identifier in identifiers:
         instrument = aggregator.get_instrument(identifier)
         # Use the full name if this instrument is the only thing being quoted
         # Otherwise use its identifier name
         if is_single_instrument:
-            portfolio_name = instrument.full_name()
+            index_name = instrument.full_name()
         else:
-            portfolio_name = instrument.identifier()
-        portfolio = Portfolio(name=portfolio_name)
-        asset = Asset(portfolio=portfolio, instrument=instrument, count=1)
-        portfolio.add_asset(asset)
-        portfolios.append(portfolio)
+            index_name = instrument.identifier()
+        index = Index(name=index_name)
+        asset = Asset(index=index, instrument=instrument, count=1)
+        index.add_asset(asset)
+        indexes.append(index)
 
-    return portfolios
+    return indexes
 
-def find_portfolio(name):
+def find_index(name):
     if not re.match('^[A-Z]{1,14}$', name):
         return None
 
     try:
-        return Portfolio.objects.get(name=name)
-    except Portfolio.DoesNotExist:
+        return Index.objects.get(name=name)
+    except Index.DoesNotExist:
         return None
 
 def stock_info(request):
