@@ -47,8 +47,7 @@ def index_action(request):
     command = parts[0]
     parts.pop(0)
 
-    remove_assets = False
-    maintain_value = False
+    should_remove = False
 
     user = get_or_create_user(request)
 
@@ -78,11 +77,8 @@ def index_action(request):
     if command == 'destroy':
         return delete_index(index)
 
-    remove_assets = False
-    maintain_value = False
-
     if command == 'remove':
-        remove_assets = True
+        should_remove = True
 
     if not parts:
         # This is an add/remove command, but no parts have been specified
@@ -99,7 +95,7 @@ def index_action(request):
 
         raise BadRequestException(usage_str.format(command))
 
-    return update_index(index, parts, remove_assets=remove_assets)
+    return update_index(index, parts, should_remove=should_remove)
 
 def display_index(request, index_name=None):
     user = get_or_create_user(request)
@@ -213,7 +209,7 @@ def update_index(index, asset_defs, **opts):
 
     return print_index(index, aggregator)
 
-def process_assets(index, aggregator, asset_defs, remove_assets = False):
+def process_assets(index, aggregator, asset_defs, should_remove = False):
     assets_to_save = []
     identifier_count_map = {}
     for ad in asset_defs:
@@ -233,7 +229,7 @@ def process_assets(index, aggregator, asset_defs, remove_assets = False):
         else:
             # If adding an asset, assume a default count of 1
             # If removing, assume all shares/contracts of the asset are being removed
-            if remove_assets:
+            if should_remove:
                 count = None
             else:
                 count = 1
@@ -246,7 +242,7 @@ def process_assets(index, aggregator, asset_defs, remove_assets = False):
     for identifier in identifier_count_map:
         instrument = aggregator.get_instrument(identifier)
         count = identifier_count_map[identifier]
-        if remove_assets:
+        if should_remove:
             remove_assets(index, instrument, count)
         else:
             add_assets(index, instrument, count)
