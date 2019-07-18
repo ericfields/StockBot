@@ -7,41 +7,6 @@ stocks and options. Users can then display charts with the overall performance o
 
 This service utilizes the (unofficial) [Robinhood API](https://github.com/sanko/Robinhood) to retrieve stock quote information and history.
 
-## Installation
-
-### Initial setup
-
-First ensure that you have Python3 and pip installed.
-
-Once installed, you can install this package's dependencies with pip as follows:
-
-```
-pip3 install -r requirements.txt
-```
-
-### Robinhood Authentication
-
-In order to retrieve stock quote data, you'll need to set the following values in the `credentials.py` file:
-`robinhood_username`: Your Robinhood account username
-`robinhood_password`: Your Robinhood account password
-`robinhood_device_token`: A UUID value which is unique between Robinhood users. This can be obtained by logging into Robinhood via browser or app, and doing a Ctrl+F for "clientId:".
-
-Note that StockBot only uses these credentials to retrieve stock quote data, and does not retrieve or interact with any user-specific information, such as the details of stocks in a user's Robinhood index.
-
-### Running StockBot
-
-Once setup is complete, you can start the app by running the Django server.
-
-```
-python3 manage.py runserver
-```
-
-You can specify a specific port/interface to run the server on. To make the application externally accessible on port 8080 for example:
-
-```
-sudo python3 manage.py runserver 0.0.0.0:8080
-```
-
 ## Features
 
 ### Stock Charts
@@ -73,16 +38,53 @@ Indexes require a database to be configured. See [INDEX.md](documentation/INDEXE
 
 StockBot can show you the latest news about a stock, using the `/news` endpoint.
 
-To display an excerpt from the latest, most viewed news article regarding FB:
+For example, to display an excerpt from the latest, most viewed news article regarding AAPL:
 
 ```
 /news FB
 ```
 
-Not enough info? If you wanted to see the three most relevant news item for FB:
+Not the article you wanted? If you wanted to see the three most relevant news item for the stock:
 
 ```
-/news FB 3
+/news AAPL 3
 ```
 
-You can request up to ten news items at once for a stock.
+StockBot attempts to sort news articles by relevance. You can request up to ten news items at once for a stock.
+
+## Installation
+
+### Initial setup
+
+First ensure that you have Python3 and pip installed.
+
+Once installed, you can install this package's dependencies with pip as follows:
+
+```
+pip3 install -r requirements.txt
+```
+
+### Robinhood Authentication
+
+In order to retrieve stock quote data, you'll need to set the following values in the `credentials.py` file:
+`robinhood_username`: Your Robinhood account username
+`robinhood_password`: Your Robinhood account password
+`robinhood_device_token`: A UUID value which is unique between Robinhood users. This can be obtained by logging into Robinhood via browser or app, and doing a Ctrl+F for "clientId:".
+
+Note that StockBot only uses these credentials to retrieve stock quote data, and does not retrieve or interact with any user-specific information, nor does it perform any buying/selling operations. StockBot only uses Robinhood to retrieve price information about a stock.
+
+### Running StockBot
+
+Once setup is complete, the simplest way to run the app is by running the Django server as follows:
+
+```
+python3 manage.py runserver
+```
+
+You can specify a specific port/interface to run the server on. To make the application externally accessible on port 8080 for example:
+
+```
+sudo python3 manage.py runserver 0.0.0.0:8080
+```
+
+For tips on a more production-level setup, i.e. using StockBot with a web server, SSL, etc., see [SETUP_NOTES.md](documentation/SETUP_NOTES.md).
