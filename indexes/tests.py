@@ -21,6 +21,12 @@ class IndexViewsTestCase(TestCase):
         self.assertContains(response, 'AAPL: 1')
         self.assertContains(response, 'AMZN: 2')
 
+        # Test lowercase as well
+        response = self.display_index('bob', name.lower())
+        self.assertContains(response, name)
+        self.assertContains(response, 'AAPL: 1')
+        self.assertContains(response, 'AMZN: 2')
+
     def test_create_multiple_indexes(self):
         name, response = self.create_index('bob', 'AAPL:3 AMZN:4')
         self.assertContains(response, name)
@@ -69,6 +75,10 @@ class IndexViewsTestCase(TestCase):
         self.assertContains(response, 'MSFT')
         self.assertContains(response, 'AAPL')
         self.assertContains(response, 'AMZN')
+
+    def test_invalid_index_or_cmd(self):
+        response = self.display_index('bob', 'nonexistent')
+        self.assertContains(response, "Unknown command or index: 'nonexistent'")
 
     def create_index(self, user, contents = None):
         index_name = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))

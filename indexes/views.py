@@ -52,8 +52,11 @@ def index_action(request):
     user = get_or_create_user(request)
 
     if command.lower() not in INDEX_COMMANDS:
-        if re.match('^[A-Z]{1,14}$', command):
-            return display_index(request, command)
+        if re.match('^[A-Za-z]{1,14}$', command):
+            try:
+                return display_index(request, command)
+            except BadRequestException:
+                raise BadRequestException(f"Unknown command or index: '{command}'\n{GENERAL_USAGE_STR}")
         else:
             raise BadRequestException(GENERAL_USAGE_STR)
 
@@ -89,8 +92,8 @@ def index_action(request):
         + "\n\t/index {0} AAPL:2 MSFT:3 ({0} two shares of AAPl and three shares of MSFT)"
         + "\n\t/index {0} AMZN$2000C@7/20 ({0} AMZN $2000 call option expiring July 20)"
         + "\n\t/index {0} AAPL180P8-31-20 ({0} AAPL $180 put option expiring August 31, 2020)"
-        + "\n\t/index {0} MSFT200C ({0} MSFT put option expiring end of this week"
-        + "\n\t/index {0} MSFT200C:10 ({0} ten MSFT put options expiring end of this week"
+        + "\n\t/index {0} MSFT200C ({0} MSFT $200 put option expiring end of this week)"
+        + "\n\t/index {0} MSFT200.5C:10 ({0} ten MSFT $200.50 put options expiring end of this week)"
         )
 
         raise BadRequestException(usage_str.format(command))
@@ -103,7 +106,7 @@ def display_index(request, index_name=None):
 
     if index_name:
         try:
-            index = Index.objects.get(name=index_name)
+            index = Index.objects.get(name=index_name.upper())
         except Index.DoesNotExist:
             raise BadRequestException("Index does not exist: '{}'".format(index_name))
     else:
