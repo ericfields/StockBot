@@ -6,7 +6,8 @@ class QuotesConfig(AppConfig):
     name = 'quotes'
 
     def ready(self):
-        if not 'test' in sys.argv: # Don't do this if just running unit tests
+        if {'runserver', 'uwsgi'}.intersection(set(sys.argv)):
+            # Preload market data
             import logging
             logger = logging.getLogger('stockbot')
             logger.info("Preloading market data")
