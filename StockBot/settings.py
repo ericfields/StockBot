@@ -84,8 +84,6 @@ if 'test' in sys.argv:
         }
     }
 
-from .database_settings import *
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 LOGGING = {
@@ -180,3 +178,6 @@ CACHES = {
 }
 
 APPEND_SLASH = True
+
+# Override settings here with those from custom_settings.py
+from .custom_settings import *
