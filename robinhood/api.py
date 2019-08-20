@@ -290,8 +290,8 @@ class ApiResource(ApiModel):
             attempts -= 1
             try:
                 start_time = time()
+                #cls.print_request(resource_url, headers)
                 response = requests.get(resource_url, headers=headers)
-                #print("{}s: {}".format(time() - start_time, resource_url))
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
                 if attempts > 0:
@@ -334,6 +334,14 @@ class ApiResource(ApiModel):
                     raise ApiInternalErrorException(response.status_code, response.text)
             else:
                 raise ApiCallException(response.status_code, response.text)
+
+    @classmethod
+    def print_request(cls, url, headers=None):
+        print("Request: {}".format(url))
+        if headers:
+            for h in headers:
+                print("\n\t{}: {}".format(h, headers[h]))
+
 
     @classmethod
     def base_url(cls):

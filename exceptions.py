@@ -1,6 +1,9 @@
 class NotFoundException(Exception):
     pass
 
+class NotAcceptableException(Exception):
+    pass
+
 class BadRequestException(Exception):
     pass
 

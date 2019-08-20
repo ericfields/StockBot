@@ -197,7 +197,8 @@ class Option(Instrument):
         'type': str,
         'chain_symbol': str,
         'url': str,
-        'tradeable': bool
+        'tradeable': bool,
+        'state': str
     }
 
     class Quote(ApiResource):

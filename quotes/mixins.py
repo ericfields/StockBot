@@ -16,6 +16,8 @@ class HandleExceptionMiddleware(MiddlewareMixin):
             status = 403
         elif isinstance(exception, NotFoundException):
             status = 404
+        elif isinstance(exception, NotAcceptableException):
+            status = 406
         else:
             raise(exception)
 

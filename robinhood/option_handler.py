@@ -43,7 +43,9 @@ class OptionHandler(InstrumentHandler):
 
         if 'expiration_date' in params and params['expiration_date']:
             for instrument in instruments:
-                 if instrument.expiration_date == params['expiration_date']:
+                if instrument.state == "inactive": # Removed or deactivated, not expired
+                    continue
+                if instrument.expiration_date == params['expiration_date']:
                      results.append(instrument)
         else:
             # Get the option expiring earliest, i.e. an "FD"

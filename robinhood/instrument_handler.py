@@ -1,7 +1,7 @@
 from helpers.cache import LongCache
 from helpers.pool import thread_pool
 from robinhood.api import ApiResource
-from exceptions import ConfigurationException, BadRequestException, NotFoundException
+from exceptions import *
 import re
 
 """Abstract class representing an interface for retrieving asset quote information
@@ -149,7 +149,7 @@ class InstrumentHandler():
             if len(matching_instruments) == 0:
                 raise NotFoundException("No {}s found for {}".format(self.TYPE, identifier))
             elif len(matching_instruments) > 1:
-                raise Exception("Multiple possible {}s found for {}: {}".format(self.TYPE, identifier, ', '.join(map(str, matching_instruments))))
+                raise Exception("Multiple possible {}s found for {}, could not select a unique one".format(self.TYPE, identifier))
 
             instrument = matching_instruments[0]
             self.set_instrument(instrument_map, instrument, identifier)
