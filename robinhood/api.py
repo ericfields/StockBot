@@ -15,6 +15,8 @@ ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
 logger = logging.getLogger('stockbot')
 
+DAY_DURATION = 86400
+
 class ApiModel():
     attributes = {}
     data = {}
@@ -181,7 +183,7 @@ class ApiResource(ApiModel):
             else:
                 data = {
                     'grant_type': 'password',
-                    'expires_in': 86400,
+                    'expires_in': DAY_DURATION,
                     'username': ApiResource.username,
                     'password': ApiResource.password,
                     'client_id': ApiResource.oauth_client_id,
@@ -206,7 +208,8 @@ class ApiResource(ApiModel):
                 access_token = data['access_token']
                 refresh_token = data['refresh_token']
 
-                Cache.set('auth_access_token', access_token)
+                # Cache for 12 hours instead of 24, to allow refresh token to be utilized
+                Cache.set('auth_access_token', access_token, DAY_DURATION / 2)
                 Cache.set('auth_refresh_token', refresh_token)
 
                 return access_token
