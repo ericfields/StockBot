@@ -4,8 +4,6 @@ from robinhood.api import ApiResource
 from exceptions import *
 import re
 
-CACHE_DURATION = 86400
-
 """Abstract class representing an interface for retrieving asset quote information
 given various identifiers"""
 class InstrumentHandler():
@@ -105,9 +103,9 @@ class InstrumentHandler():
                 self.set_instrument(instrument_map, instrument)
 
                 # Cache results of both a resource get and a search query
-                Cache.set(instrument.url, instrument.data, CACHE_DURATION)
+                Cache.set(instrument.url, instrument.data)
                 search_url = self.build_search_url(self.get_search_params(instrument.identifier()))
-                Cache.set(search_url, {'results': [instrument.data]}, CACHE_DURATION)
+                Cache.set(search_url, {'results': [instrument.data]})
 
     def search_instruments(self, instrument_map, search_params):
         search_jobs = {}
@@ -144,7 +142,7 @@ class InstrumentHandler():
             search_url = self.build_search_url(params)
 
             # Cache results for the search query
-            Cache.set(search_url, {'results': [ i.data for i in retrieved_instruments ]}, CACHE_DURATION)
+            Cache.set(search_url, {'results': [ i.data for i in retrieved_instruments ]})
 
             matching_instruments = self.filter_results(retrieved_instruments, params)
 
@@ -157,7 +155,7 @@ class InstrumentHandler():
             self.set_instrument(instrument_map, instrument, identifier)
 
             # Cache results for the resource query
-            Cache.set(instrument.url, instrument.data, CACHE_DURATION)
+            Cache.set(instrument.url, instrument.data)
 
     def set_instrument(self, instrument_map, instrument, identifier=None):
         instrument_map[instrument.identifier()] = instrument

@@ -24,10 +24,8 @@ class NotImplementedException(Exception):
 
 class Market(ApiResource):
     endpoint_path = "/markets"
-    cache_timeout = 86400
 
     class Hours(ApiResource):
-        cache_timeout = 86400
         attributes = {
             'opens_at': datetime,
             'closes_at': datetime,
@@ -116,11 +114,12 @@ class Instrument(ApiResource):
 
 class Stock(Instrument):
     endpoint_path = "/instruments"
-    cache_timeout = 86400
 
     class Quote(ApiResource):
         endpoint_path = "/quotes"
         authenticated = True
+        enable_cache = False
+
         attributes = {
             'symbol': str,
             'last_trade_price': float,
@@ -134,7 +133,6 @@ class Stock(Instrument):
 
     class Fundamentals(ApiResource):
         endpoint_path = "/fundamentals"
-        cache_timeout = 86400
         attributes = {
             'description': str
         }
@@ -185,7 +183,6 @@ class Stock(Instrument):
 
 class Option(Instrument):
     endpoint_path = "/options/instruments"
-    cache_timeout = 86400
     attributes = {
         'id': str,
         'issue_date': datetime,
@@ -203,6 +200,8 @@ class Option(Instrument):
     class Quote(ApiResource):
         endpoint_path = "/marketdata/options"
         authenticated = True
+        enable_cache = False
+
         attributes = {
             'adjusted_mark_price': float,
             'previous_close_price': float,

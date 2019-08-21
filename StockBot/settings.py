@@ -156,20 +156,6 @@ STATIC_URL = '/static/'
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'TIMEOUT': 300,
-        'OPTIONS': {
-            'MAX_ENTRIES': 1000
-        }
-    },
-    'short': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'TIMEOUT': 300,
-        'OPTIONS': {
-            'MAX_ENTRIES': 1000
-        }
-    },
-    'long': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'TIMEOUT': 86400,
         'OPTIONS': {
             'MAX_ENTRIES': 10000

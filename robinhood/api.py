@@ -206,8 +206,8 @@ class ApiResource(ApiModel):
                 access_token = data['access_token']
                 refresh_token = data['refresh_token']
 
-                Cache.set('auth_access_token', access_token, 86400)
-                Cache.set('auth_refresh_token', refresh_token, 86400)
+                Cache.set('auth_access_token', access_token)
+                Cache.set('auth_refresh_token', refresh_token)
 
                 return access_token
 
@@ -264,11 +264,12 @@ class ApiResource(ApiModel):
 
             resource_url += '?' + '&'.join(param_strs)
 
-        # Check if we have a cache hit first
+        data = None
         if cls.enable_cache:
+            # Check if we have a cache hit first
             data = Cache.get(resource_url)
-        if data:
-            return data
+            if data:
+                return data
 
         headers = {}
 
