@@ -6,7 +6,6 @@
 #         'NAME': 'stockbot',
 #     }
 # }
-# 
 #
 # CACHES = {
 #     'default': {

@@ -9,6 +9,7 @@ from time import sleep
 import hashlib
 import logging
 from time import time
+from helpers.cache import Cache
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
@@ -118,7 +119,9 @@ class ApiResource(ApiModel):
     api_endpoint = ROBINHOOD_ENDPOINT
     endpoint_path = ''
     authenticated = False
-    cache = None
+
+    enable_cache = True
+    cache_timeout = None
 
     # State variable to set while we are renewing our auth credentials
     auth_lock = Lock()
@@ -270,11 +273,12 @@ class ApiResource(ApiModel):
                 param_strs.append("{}={}".format(key, val))
 
             resource_url += '?' + '&'.join(param_strs)
-        if cls.cache:
-            # Check if we have a cache hit first
-            data = cls.cache.get(resource_url)
-            if data:
-                return data
+
+        # Check if we have a cache hit first
+        if cls.enable_cache:
+            data = Cache.get(resource_url)
+        if data:
+            return data
 
         headers = {}
 
@@ -302,9 +306,9 @@ class ApiResource(ApiModel):
 
             if response.status_code == 200:
                 data = response.json()
-                if cls.cache:
+                if cls.enable_cache:
                     # Cache response. Only successful calls are cached.
-                    cls.cache.set(resource_url, data)
+                    Cache.set(resource_url, data, cls.cache_timeout)
                 return data
             elif response.status_code == 400:
                 message = "{} (request URL: {})".format(response.text, resource_url)

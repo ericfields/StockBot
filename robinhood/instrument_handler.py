@@ -1,8 +1,10 @@
-from helpers.cache import LongCache
+from helpers.cache import Cache
 from helpers.pool import thread_pool
 from robinhood.api import ApiResource
 from exceptions import *
 import re
+
+CACHE_DURATION = 86400
 
 """Abstract class representing an interface for retrieving asset quote information
 given various identifiers"""
@@ -88,7 +90,7 @@ class InstrumentHandler():
 
         for url in get_params:
             # Check if instrument is in the cache before querying Robinhood
-            data = LongCache.get(url)
+            data = Cache.get(url)
             if data:
                 instrument = self.instrument_class()(**data)
                 self.set_instrument(instrument_map, instrument)
@@ -103,9 +105,9 @@ class InstrumentHandler():
                 self.set_instrument(instrument_map, instrument)
 
                 # Cache results of both a resource get and a search query
-                LongCache.set(instrument.url, instrument.data)
+                Cache.set(instrument.url, instrument.data, CACHE_DURATION)
                 search_url = self.build_search_url(self.get_search_params(instrument.identifier()))
-                LongCache.set(search_url, {'results': [instrument.data]})
+                Cache.set(search_url, {'results': [instrument.data]}, CACHE_DURATION)
 
     def search_instruments(self, instrument_map, search_params):
         search_jobs = {}
@@ -119,7 +121,7 @@ class InstrumentHandler():
                 params = search_params[identifier]
                 search_url = self.build_search_url(params)
 
-                data = LongCache.get(search_url)
+                data = Cache.get(search_url)
                 if data:
                     if 'results' in data:
                         cached_instruments = [self.instrument_class()(**d) for d in data['results']]
@@ -142,7 +144,7 @@ class InstrumentHandler():
             search_url = self.build_search_url(params)
 
             # Cache results for the search query
-            LongCache.set(search_url, {'results': [ i.data for i in retrieved_instruments ]})
+            Cache.set(search_url, {'results': [ i.data for i in retrieved_instruments ]}, CACHE_DURATION)
 
             matching_instruments = self.filter_results(retrieved_instruments, params)
 
@@ -155,7 +157,7 @@ class InstrumentHandler():
             self.set_instrument(instrument_map, instrument, identifier)
 
             # Cache results for the resource query
-            LongCache.set(instrument.url, instrument.data)
+            Cache.set(instrument.url, instrument.data, CACHE_DURATION)
 
     def set_instrument(self, instrument_map, instrument, identifier=None):
         instrument_map[instrument.identifier()] = instrument

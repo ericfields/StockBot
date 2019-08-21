@@ -3,8 +3,8 @@ import hashlib
 
 class Cache():
     @classmethod
-    def set(cls, key, value):
-        caches[cls.cache_name()].set(Cache.__cache_key(key), value)
+    def set(cls, key, value, timeout=None):
+        caches[cls.cache_name()].set(Cache.__cache_key(key), value, timeout)
 
     @classmethod
     def get(cls, key):
@@ -19,13 +19,3 @@ class Cache():
         m = hashlib.md5()
         m.update(str.encode(key_str))
         return m.hexdigest()
-
-class ShortCache(Cache):
-    @classmethod
-    def cache_name(cls):
-        return 'short'
-
-class LongCache(Cache):
-    @classmethod
-    def cache_name(cls):
-        return 'long'

@@ -3,7 +3,7 @@ from robinhood.models import *
 from robinhood.stock_handler import StockHandler
 from robinhood.option_handler import OptionHandler
 from time import time
-from helpers.cache import LongCache
+from helpers.cache import Cache
 
 class RobinhoodTestCase(TestCase):
 
@@ -51,12 +51,12 @@ class RobinhoodTestCase(TestCase):
         self.validate_stock(identifier, instrument)
 
         # Test that the cache was set correctly
-        cached_data = LongCache.get(instrument.url)
+        cached_data = Cache.get(instrument.url)
         self.assertIsNotNone(cached_data)
         instrument_from_cache = Stock(**cached_data)
         self.validate_stock(identifier, instrument_from_cache)
 
-        cached_data = LongCache.get(Stock.search_url(symbol=instrument.symbol))
+        cached_data = Cache.get(Stock.search_url(symbol=instrument.symbol))
         self.assertIsNotNone(cached_data)
         self.assertTrue('results' in cached_data)
         self.assertTrue(len(cached_data['results']) == 1)
@@ -71,7 +71,7 @@ class RobinhoodTestCase(TestCase):
         instrument = instruments[identifier]
         self.validate_stock(identifier, instrument)
 
-        self.assertTrue(time() - start_time < 0.05, "LongCached entry was not used")
+        self.assertTrue(time() - start_time < 0.05, "Cached entry was not used")
 
     def test_stock_handler_with_url(self):
         identifier = 'FB'
@@ -111,12 +111,12 @@ class RobinhoodTestCase(TestCase):
         self.validate_option(identifier, instrument)
 
         # Test that the cache was set correctly
-        cached_data = LongCache.get(instrument.url)
+        cached_data = Cache.get(instrument.url)
         self.assertIsNotNone(cached_data)
         instrument_from_cache = Option(**cached_data)
         self.validate_option(identifier, instrument_from_cache)
 
-        cached_data = LongCache.get(Option.search_url(
+        cached_data = Cache.get(Option.search_url(
             chain_symbol=instrument.chain_symbol,
             strike_price=instrument.strike_price,
             type=instrument.type,
@@ -144,7 +144,7 @@ class RobinhoodTestCase(TestCase):
         instrument = instruments[identifier]
         self.validate_option(identifier, instrument)
 
-        self.assertTrue(time() - start_time < 0.05, "LongCached entry was not used")
+        self.assertTrue(time() - start_time < 0.05, "Cached entry was not used")
 
     def test_option_handler_with_url(self):
         identifier = 'AMZN1950.0P@01/15/21'
