@@ -13,9 +13,17 @@ from helpers.cache import Cache
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
+AUTH_INFO = {
+    'url': ROBINHOOD_ENDPOINT + "/oauth2/token/",
+    'headers': {
+        'Content-Type': 'application/json',
+        'X-Robinhood-API-Version': '1.265.0'
+    }
+}
+
 logger = logging.getLogger('stockbot')
 
-DAY_DURATION = 86400
+AUTH_DURATION = timedelta(days=1)
 
 class ApiModel():
     attributes = {}
@@ -117,7 +125,13 @@ class ApiThrottledException(ApiCallException):
 class ApiResource(ApiModel):
     api_endpoint = ROBINHOOD_ENDPOINT
     endpoint_path = ''
+
     authenticated = False
+
+    auth_access_token = None
+    auth_refresh_token = None
+    auth_expiration = None
+    auth_lock = Lock()
 
     enable_cache = True
     cache_timeout = None
@@ -151,7 +165,7 @@ class ApiResource(ApiModel):
 
 
     @staticmethod
-    def authenticate():
+    def authenticate(force_reauth=False):
         if not (ApiResource.username and ApiResource.password and ApiResource.device_token and ApiResource.oauth_client_id):
             raise RobinhoodCredentialsException("Attempting to call authenticated endpoint, but one or more Robinhood credentials are missing for this server.")
 
@@ -159,93 +173,120 @@ class ApiResource(ApiModel):
         if ApiResource.permanent_auth_failure:
             raise ApiResource.permanent_auth_failure
 
-        auth_url = ROBINHOOD_ENDPOINT + "/oauth2/token/"
+        # Use locking to make sure that we are not trying to authenticate
+        # from several thrads at once
+        ApiResource.auth_lock.acquire()
+        try:
+            # We should check the cache's value before our local instance,
+            # as another process may have already reauthenticated and set the value
+            access_token = Cache.get('auth_access_token') or ApiResource.auth_access_token
+            auth_expiration = Cache.get('auth_expiration') or ApiResource.auth_expiration
 
-        auth_request_headers = {
-            'Content-Type': 'application/json',
-            'X-Robinhood-API-Version': '1.265.0'
-        }
+            if not force_reauth:
+                if access_token and auth_expiration and datetime.now() < auth_expiration:
+                    return access_token
 
-        refresh_token = Cache.get('auth_refresh_token')
+            refresh_token = Cache.get('auth_refresh_token') or ApiResource.auth_refresh_token
 
-        attempts = 3
+            attempts = 3
 
-        while True:
-            attempts -= 1
+            while True:
+                attempts -= 1
 
-            if refresh_token:
-                data = {
-                    'grant_type': 'refresh_token',
-                    'refresh_token': refresh_token,
-                    'client_id': ApiResource.oauth_client_id,
-                    'device_token': ApiResource.device_token
-                }
-            else:
-                data = {
-                    'grant_type': 'password',
-                    'expires_in': DAY_DURATION,
-                    'username': ApiResource.username,
-                    'password': ApiResource.password,
-                    'client_id': ApiResource.oauth_client_id,
-                    'device_token': ApiResource.device_token,
-                    'scope': 'internal'
-                }
+                if refresh_token and not force_reauth:
+                    data = {
+                        'grant_type': 'refresh_token',
+                        'refresh_token': refresh_token,
+                        'client_id': ApiResource.oauth_client_id,
+                        'device_token': ApiResource.device_token
+                    }
+                else:
+                    data = {
+                        'grant_type': 'password',
+                        'expires_in': AUTH_DURATION.total_seconds(),
+                        'username': ApiResource.username,
+                        'password': ApiResource.password,
+                        'client_id': ApiResource.oauth_client_id,
+                        'device_token': ApiResource.device_token,
+                        'scope': 'internal'
+                    }
 
-            try:
-                response = requests.post(auth_url, headers=auth_request_headers, data=json.dumps(data))
-            except requests.exceptions.ConnectionError as e:
-                # Occasional error, retry if possible
-                if attempts > 0:
-                    sleep(1)
-                    continue
-
-                raise e
-
-
-            if response.status_code == 200:
-                data = response.json()
-
-                access_token = data['access_token']
-                refresh_token = data['refresh_token']
-
-                # Cache for 12 hours instead of 24, to allow refresh token to be utilized
-                Cache.set('auth_access_token', access_token, DAY_DURATION / 2)
-                Cache.set('auth_refresh_token', refresh_token)
-
-                return access_token
-
-            if response.status_code >= 500:
-                if attempts > 0:
-                    sleep(1)
-                    continue
-
-                raise ApiInternalErrorException(response.status_code, response.text)
-
-            if response.status_code == 401:
                 try:
-                    response_data = response.json()
-                    if 'error' in response_data and response_data['error'] == 'invalid_grant':
-                        # Refresh token is no longer valid
-                        # Remove it and re-attempt authentication with username/password
-                        refresh_token = None
+                    response = requests.post(AUTH_INFO['url'], headers=AUTH_INFO['headers'], data=json.dumps(data))
+                except requests.exceptions.ConnectionError as e:
+                    # Occasional error, retry if possible
+                    if attempts > 0:
+                        sleep(1)
                         continue
-                except ValueError:
-                    # Response is not valid JSON, let remaining error logic handle it
-                    pass
 
-            if response.status_code == 429:
-                raise ApiThrottledException(response.text)
+                    raise e
 
-            # Error codes other than these are considered to be permanent errors,
-            # due to invalid credentials or other issues with user-provided credentials.
-            if response.status_code == 403:
-                error = ApiForbiddenException("Authentication is required for this endpoint, but credentials are expired or invalid.")
-            else:
-                request_details = "\n\tRequest URL: {}\n\tRequest headers: {}\n\tRequest data: {}".format(
-                    auth_url, auth_request_headers, data)
-                error = ApiCallException(response.status_code, response.text + request_details)
-            ApiResource.permanent_auth_failure = error
-            raise error
+
+                if response.status_code == 200:
+                    data = response.json()
+
+                    access_token = data['access_token']
+                    refresh_token = data['refresh_token']
+
+                    auth_refresh_duration = AUTH_DURATION / 2
+                    auth_expiration = datetime.now() + auth_refresh_duration
+
+                    # Set the access token to expire early to allow the refresh token to be utilized
+                    Cache.set('auth_access_token', access_token, auth_refresh_duration.total_seconds())
+                    Cache.set('auth_refresh_token', refresh_token, AUTH_DURATION.total_seconds())
+                    Cache.set('auth_expiration', auth_expiration)
+
+                    # Define in local memory (we may not have a cache available to us)
+                    ApiResource.auth_expiration = auth_expiration
+                    ApiResource.auth_access_token = access_token
+                    ApiResource.auth_refresh_token = refresh_token
+
+                    return access_token
+
+                if response.status_code >= 500:
+                    if attempts > 0:
+                        sleep(1)
+                        continue
+
+                    raise ApiInternalErrorException(response.status_code, response.text)
+
+                if response.status_code == 429:
+                    raise ApiThrottledException(response.text)
+
+                # If we reach this point we've likely received an authentication error
+                # Remove cached credentials and force reauthentication
+                force_reauth = True
+                Cache.delete('auth_access_token')
+                Cache.delete('auth_refresh_token')
+                Cache.delete('auth_expiration')
+                ApiResource.auth_access_token = None
+                ApiResource.auth_refresh_token = None
+                ApiResource.auth_expiration = None
+
+                if response.status_code == 401:
+                    try:
+                        response_data = response.json()
+                        if 'error' in response_data and response_data['error'] == 'invalid_grant':
+                            # Refresh token is no longer valid
+                            # Remove it and re-attempt authentication with username/password
+                            refresh_token = None
+                            continue
+                    except ValueError:
+                        # Response is not valid JSON, let remaining error logic handle it
+                        pass
+
+                # Error codes other than these are considered to be permanent errors,
+                # due to invalid credentials or other issues with user-provided credentials.
+                if response.status_code == 403:
+                    error = ApiForbiddenException("Authentication is required for this endpoint, but credentials are expired or invalid.")
+                else:
+                    request_details = "\n\tRequest URL: {}\n\tRequest headers: {}\n\tRequest data: {}".format(
+                        auth_url, auth_request_headers, data)
+                    error = ApiCallException(response.status_code, response.text + request_details)
+                ApiResource.permanent_auth_failure = error
+                raise error
+        finally:
+            ApiResource.auth_lock.release()
 
     # Makes a request to Robinhood to retrieve data
     @classmethod
@@ -277,9 +318,7 @@ class ApiResource(ApiModel):
         headers = {}
 
         if cls.authenticated:
-            access_token = Cache.get('auth_access_token')
-            if not access_token:
-                access_token = ApiResource.authenticate()
+            access_token = ApiResource.authenticate()
 
             headers['Authorization'] = 'Bearer ' + access_token
 
@@ -312,7 +351,7 @@ class ApiResource(ApiModel):
                 if cls.authenticated:
                     if attempts > 0:
                         # Credentials may have expired, try reauthenticating
-                        access_token = ApiResource.authenticate()
+                        access_token = ApiResource.authenticate(force_reauth=True)
                         headers['Authorization'] = 'Bearer ' + access_token
                         continue
                     else:
@@ -322,7 +361,7 @@ class ApiResource(ApiModel):
             elif response.status_code == 403:
                 if attempts > 0:
                     # Credentials may have expired, try reauthenticating
-                    access_token = ApiResource.authenticate()
+                    access_token = ApiResource.authenticate(force_reauth=True)
                     headers['Authorization'] = 'Bearer ' + access_token
                     continue
                 else:
