@@ -2,18 +2,23 @@ from django.test import TestCase, Client
 import string
 import random
 from django.conf import settings
+from helpers.test_helpers import *
+from robinhood.models import Stock
 
 class IndexViewsTestCase(TestCase):
     def setUp(self):
         self.client = Client()
 
+
     def test_create_index(self):
+        mock_stock_workflow('AAPL', 'AMZN')
         name, response = self.create_index('bob', 'AAPL AMZN:2')
         self.assertContains(response, name)
         self.assertContains(response, 'AAPL: 1')
         self.assertContains(response, 'AMZN: 2')
 
     def test_display_index(self):
+        mock_stock_workflow('AAPL', 'AMZN')
         name, response = self.create_index('bob', 'AAPL AMZN:2')
         self.assertEquals(200, response.status_code)
         response = self.display_index('bob', name)
@@ -28,6 +33,7 @@ class IndexViewsTestCase(TestCase):
         self.assertContains(response, 'AMZN: 2')
 
     def test_create_multiple_indexes(self):
+        mock_stock_workflow('AAPL', 'AMZN')
         name, response = self.create_index('bob', 'AAPL:3 AMZN:4')
         self.assertContains(response, name)
         self.assertContains(response, 'AAPL: 3')
@@ -38,6 +44,7 @@ class IndexViewsTestCase(TestCase):
         self.assertContains(response, 'AMZN: 6')
 
     def test_list_multiple_indexes(self):
+        mock_stock_workflow('AAPL', 'AMZN')
         name1, _ = self.create_index('bob', 'AAPL:1 AMZN:2')
         name2, _ = self.create_index('bob', 'AAPL:3 AMZN:4')
 
@@ -52,6 +59,7 @@ class IndexViewsTestCase(TestCase):
         self.assertContains(response, name2)
 
     def test_index_privacy(self):
+        mock_stock_workflow('AAPL', 'AMZN')
         bobs, _ = self.create_index('bob', 'AAPL:1 AMZN:2')
         alices, _ = self.create_index('alice', 'AAPL:3 AMZN:4')
 
@@ -63,6 +71,7 @@ class IndexViewsTestCase(TestCase):
         self.assertNotContains(response, bobs)
 
     def test_index_add(self):
+        mock_stock_workflow('AAPL', 'AMZN')
         name, response = self.create_index('bob')
         self.assertContains(response, name)
 
@@ -70,6 +79,7 @@ class IndexViewsTestCase(TestCase):
         self.assertContains(response, 'AAPL')
         self.assertContains(response, 'AMZN')
 
+        mock_stock_workflow('AAPL', 'AMZN', 'MSFT')
         response = self.index_add('bob', 'MSFT', name)
         self.assertContains(response, name)
         self.assertContains(response, 'MSFT')
@@ -82,6 +92,8 @@ class IndexViewsTestCase(TestCase):
 
     def create_index(self, user, contents = None):
         index_name = ''.join(random.choice(string.ascii_uppercase) for _ in range(8))
+        # Mock the request to check if the index name exists
+        Stock.mock_search([], symbol=index_name)
         cmd = "create " + index_name
         if contents:
             cmd += " " + contents

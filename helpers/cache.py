@@ -22,7 +22,7 @@ class Cache():
     def __cache_key(key_str):
         # Cache key must be shorter than than 250 characters
         # and cannot have any whitespace or control characters
-        if len(key_str) > 250 or (' ' in key_str) or ("\\" in key_str):
+        if len(key_str) >= 250 or (' ' in key_str) or ("\\" in key_str):
             m = hashlib.md5()
             m.update(str.encode(key_str))
             key_str = m.hexdigest()

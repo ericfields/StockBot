@@ -55,9 +55,6 @@ class InstrumentHandler():
     UUID_FORMAT = '.*\/?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$'
 
     def find_instruments(self, *identifiers):
-        if self.authenticated():
-            self.check_authentication()
-
         # Map of identifiers to their corresponding instruments
         instrument_map = {}
 
@@ -169,10 +166,6 @@ class InstrumentHandler():
 
     def valid_url(self, url):
         return url.startswith(self.instrument_class().base_url()) and re.match(self.UUID_FORMAT, url)
-
-    def check_authentication(self):
-        if not (ApiResource.username and ApiResource.password):
-            raise ConfigurationException("This command requires an authenticated backend API call, but credentials are not configured for this server.")
 
     def build_search_url(self, params):
         # params is a dictionary of parameters to search for

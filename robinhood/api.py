@@ -1,5 +1,5 @@
 import requests
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from dateutil import parser as dateparser
 import pytz
 import re
@@ -10,6 +10,8 @@ import hashlib
 import logging
 from time import time
 from helpers.cache import Cache
+import inspect
+from exceptions import NotFoundException
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
@@ -54,14 +56,45 @@ class ApiModel():
                 # Initialize all missing attributes as None
                 setattr(self, attr, None)
         # Load variables for list items if they exist
+        if 'items' in data:
+            self.items = data['items']
+        else:
+            try:
+                item_class = self.__class__.Item
+                list_key = item_class.list_key
+                if list_key in data:
+                    self.items = [item_class(**item) for item in data[list_key]]
+            except AttributeError:
+                # Not a listable item class
+                pass
+
+    def raw_data(self):
+        data = {}
+        for attr in self.attributes:
+            val = getattr(self, attr)
+            if val is not None:
+                attr_type = self.attributes[attr]
+                if val and type(attr_type) == type and issubclass(attr_type, ApiModel):
+                    if inspect.isclass(val):
+                        val = val.raw_data()
+                    else:
+                        val = val().raw_data()
+                elif attr_type in [int, float, date, pytz.timezone]:
+                    val = str(val)
+            data[attr] = val
+
+        # Set items list if present in class
         try:
             item_class = self.__class__.Item
             list_key = item_class.list_key
-            if list_key in data:
-                self.items = [item_class(**item) for item in data[list_key]]
+            try:
+                data[list_key] = [i.raw_data() for i in self.items]
+            except AttributeError as e:
+                raise Exception(e)
         except AttributeError:
             # Not a listable item class
             pass
+        return data
 
     def __typed_attribute(self, attr, val):
         if val == None:
@@ -69,9 +102,22 @@ class ApiModel():
         attr_type = self.attributes[attr]
         if attr_type == None:
             return val
+        elif attr_type == date:
+            if type(val) is str:
+                val = dateparser.parse(val).date()
+            elif type(val) is datetime:
+                val = val.date()
+            elif type(val) is not date:
+                raise ValueError(f"Cannot extract date from value of type '{type(val)}'")
+            return val
         elif attr_type == datetime:
-            date = dateparser.parse(val).astimezone(pytz.utc).replace(tzinfo=None)
-            return date
+            if type(val) in [int, float]:
+                val = datetime.fromtimestamp(val)
+            elif type(val) is str:
+                val = dateparser.parse(val).astimezone(pytz.utc).replace(tzinfo=None)
+            elif type(val) is not datetime:
+                raise ValueError(f"Cannot extract datetime from value of type '{type(val)}'")
+            return val
         elif attr_type == bool:
             return val in [True, 'true', 'True', 't', 1]
         elif type(attr_type) == type and issubclass(attr_type, ApiModel) or attr_type == self.__class__.CurrentClass:
@@ -85,7 +131,10 @@ class ApiModel():
                 return attr_type(**attr_type.request(val))
             return resource_function
         else:
-            return attr_type(val)
+            try:
+                return attr_type(val)
+            except TypeError:
+                raise Exception(f"Could not cast value as {attr_type}: {val}")
 
 class ApiCallException(Exception):
     code = None
@@ -136,6 +185,9 @@ class ApiResource(ApiModel):
     enable_cache = True
     cache_timeout = None
 
+    enable_mock = False
+    mock_results = {}
+
     @classmethod
     def search(cls, **params):
         results = []
@@ -148,7 +200,6 @@ class ApiResource(ApiModel):
                 data = cls.request(next_url)
             else:
                 break
-
         return results
 
     @classmethod
@@ -166,6 +217,11 @@ class ApiResource(ApiModel):
 
     @staticmethod
     def authenticate(force_reauth=False):
+        if ApiResource.enable_mock:
+            # We are about to make an authentication request, which
+            # should not occur when we are in mock mode
+            raise Exception("Attempting to make authentication request when mocking enabled")
+
         if not (ApiResource.username and ApiResource.password and ApiResource.device_token and ApiResource.oauth_client_id):
             raise RobinhoodCredentialsException("Attempting to call authenticated endpoint, but one or more Robinhood credentials are missing for this server.")
 
@@ -291,29 +347,24 @@ class ApiResource(ApiModel):
     # Makes a request to Robinhood to retrieve data
     @classmethod
     def request(cls, resource_url, **params):
-        # Convert a pathname to a full Robinhood URL
-        if re.match('^\/', resource_url):
-            resource_url = ROBINHOOD_ENDPOINT + resource_url
-
-        if params:
-            param_strs = []
-            for key in params:
-                # convert list parameters to comma-separated strings
-                val = params[key]
-                if type(val) == list or type(val) == set:
-                    val = ','.join(str(v) for v in val)
-                elif isinstance(val, ApiModel):
-                    val = val.url
-                param_strs.append("{}={}".format(key, val))
-
-            resource_url += '?' + '&'.join(param_strs)
-
+        request_url = ApiResource.__request_url(resource_url, **params)
         data = None
+
+        if ApiResource.enable_mock and request_url in ApiResource.mock_results:
+            # Load the mocked value
+            data = ApiResource.mock_results[request_url]
+            return data
+
         if cls.enable_cache:
             # Check if we have a cache hit first
-            data = Cache.get(resource_url)
+            data = Cache.get(request_url)
             if data:
                 return data
+
+        if ApiResource.enable_mock:
+            # We have not mocked out a request for this resource, raise an error
+            print(f"WARNING: Unmocked request: {request_url}")
+            raise NotFoundException(f"Mocking is currently enabled, but Robinhood request has not been mocked: {request_url}")
 
         headers = {}
 
@@ -328,8 +379,7 @@ class ApiResource(ApiModel):
             attempts -= 1
             try:
                 start_time = time()
-                #cls.print_request(resource_url, headers)
-                response = requests.get(resource_url, headers=headers)
+                response = requests.get(request_url, headers=headers)
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
                 if attempts > 0:
@@ -342,10 +392,10 @@ class ApiResource(ApiModel):
                 data = response.json()
                 if cls.enable_cache:
                     # Cache response. Only successful calls are cached.
-                    Cache.set(resource_url, data, cls.cache_timeout)
+                    Cache.set(request_url, data, cls.cache_timeout)
                 return data
             elif response.status_code == 400:
-                message = "{} (request URL: {})".format(response.text, resource_url)
+                message = "{} (request URL: {})".format(response.text, request_url)
                 raise ApiBadRequestException(message)
             elif response.status_code == 401:
                 if cls.authenticated:
@@ -365,7 +415,7 @@ class ApiResource(ApiModel):
                     headers['Authorization'] = 'Bearer ' + access_token
                     continue
                 else:
-                    raise ApiForbiddenException("Not authorized to access this resource: {}".format(resource_url))
+                    raise ApiForbiddenException("Not authorized to access this resource: {}".format(request_url))
             elif response.status_code == 404:
                 return None
             elif response.status_code > 500:
@@ -374,14 +424,6 @@ class ApiResource(ApiModel):
                     raise ApiInternalErrorException(response.status_code, response.text)
             else:
                 raise ApiCallException(response.status_code, response.text)
-
-    @classmethod
-    def print_request(cls, url, headers=None):
-        print("Request: {}".format(url))
-        if headers:
-            for h in headers:
-                print("\n\t{}: {}".format(h, headers[h]))
-
 
     @classmethod
     def base_url(cls):
@@ -411,6 +453,55 @@ class ApiResource(ApiModel):
             url += '?' + '&'.join(param_strs)
         return url
 
+    @classmethod
+    def mock_get(cls, result, resource_id):
+        if re.match("^https:\/\/", str(resource_id)):
+            resource_url = resource_id
+        else:
+            resource_url = cls.resource_url(resource_id)
+        request_url = ApiResource.__request_url(resource_url)
+        ApiResource.mock_results[request_url] = result.raw_data()
+
+    @classmethod
+    def mock_search(cls, results, **params):
+        if (type(results)) not in [list, set]:
+            results = [results]
+        request_url = ApiResource.__request_url(cls.resource_url(), **params)
+        ApiResource.mock_results[request_url] = {
+            'results': [r.raw_data() for r in results]
+        }
+
+    @classmethod
+    def has_mock(cls, **params):
+        request_url = ApiResource.__request_url(cls.resource_url(), **params)
+        return request_url in ApiResource.mock_results
+
+    def __request_url(resource_url, **params):
+        request_url = resource_url
+        # Convert a pathname to a full Robinhood URL
+        if re.match('^\/', resource_url):
+            request_url = ROBINHOOD_ENDPOINT + request_url
+
+        if params:
+            param_strs = []
+            # Append the keys in sorted order to make cache hits more likely
+            # for queries requesting the same items
+            for key in sorted(params.keys()):
+                # convert list parameters to comma-separated strings
+                val = params[key]
+                if type(val) == list or type(val) == set:
+                    val = ','.join(sorted(str(v) for v in val))
+                elif isinstance(val, ApiModel):
+                    val = val.url
+                param_strs.append("{}={}".format(key, val))
+
+            if '?' in request_url:
+                request_url += '&'
+            else:
+                request_url += '?'
+            request_url += '&'.join(param_strs)
+        return request_url
+
     # Enable iteration through the individual items if present
     def __iter__(self):
         try:
@@ -422,3 +513,9 @@ class ApiResource(ApiModel):
 
     def __next__(self):
         return next(__iter__())
+
+def print_req(url, headers=None):
+    print("Request: {}".format(url))
+    if headers:
+        for h in headers:
+            print("\n\t{}: {}".format(h, headers[h]))

@@ -3,17 +3,22 @@ from robinhood.models import Market
 from robinhood.api import ApiResource
 import credentials
 import sys
+import logging
+
+logger = logging.getLogger('stockbot')
 
 class QuotesConfig(AppConfig):
     name = 'quotes'
 
     def ready(self):
-        self.load_auth_credentials()
-        if {'test', 'runserver', 'uwsgi'}.intersection(set(sys.argv)):
+        if 'test' in sys.argv:
+            logger.info("Detected that we are in testing mode, enabling mocks for Robinhood API")
+            ApiResource.enable_mock = True
+
+        if {'runserver', 'uwsgi'}.intersection(set(sys.argv)):
             self.load_auth_credentials()
-            #ApiResource.authenticate()
-            if {'runserver', 'uwsgi'}.intersection(set(sys.argv)):
-                self.preload_market_info()
+            ApiResource.authenticate()
+            self.preload_market_info()
 
 
     def load_auth_credentials(self):
@@ -24,8 +29,6 @@ class QuotesConfig(AppConfig):
             ApiResource.device_token = credentials.robinhood_device_token
 
     def preload_market_info(self):
-        import logging
-        logger = logging.getLogger('stockbot')
         logger.info("Preloading market data")
         MARKET = 'XNYS'
         market = Market.get(MARKET)

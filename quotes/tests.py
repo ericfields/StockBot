@@ -1,38 +1,51 @@
 from django.test import TestCase, Client
 from quotes.aggregator import Aggregator
-from robinhood.models import Instrument
+from robinhood.models import *
 from indexes.models import Asset, Index, User
 from robinhood.stock_handler import StockHandler
 from robinhood.option_handler import OptionHandler
-from time import sleep
-from datetime import datetime, timedelta
+from helpers.test_helpers import *
 
 class QuotesTestCase(TestCase):
 
     def setUp(self):
+        ApiResource.enable_mock = True
+        mock_market()
+
         self.stock_handler = StockHandler()
         self.option_handler = OptionHandler()
 
-        instruments = self.stock_handler.find_instruments('AAPL', 'MSFT', 'AMZN').values()
-
-        user = User.objects.create(id='1234', name='testuser')
-        index = Index.objects.create(name='QUOTESA', user_id=user.id)
-        [index.asset_set.create(instrument=i) for i in instruments]
         self.client = Client()
 
     def test_stock_quote(self):
-        response = self.client.get('/quotes/view/AMZN')
+        mock_stock_workflow('FAKE')
+        response = self.client.get('/quotes/view/FAKE')
         self.assertEquals(200, response.status_code)
 
     def test_index_quote(self):
-        response = self.client.post('/indexes/', {'user_id': 'test', 'user_name': 'test', 'text': 'create TEST AAPL:1 AMZN:2'})
+        mock_stock_workflow('FAKEA', 'FAKEB')
+
+        index_name = 'TEST'
+        create_cmd = 'create TEST FAKEA:1 FAKEB:2'
+
+        # Ensure that the check for a preexisting stock
+        # with the same name as the index is mocked
+        Stock.mock_search([], symbol=index_name)
+
+        response = self.client.post('/indexes/', {
+            'user_id': 'test',
+            'user_name': 'test',
+            'text': create_cmd}
+        )
         self.assertContains(response, 'TEST')
-        self.assertContains(response, 'AAPL')
-        self.assertContains(response, 'AMZN')
+        self.assertContains(response, 'FAKEA')
+        self.assertContains(response, 'FAKEB')
+
         response = self.client.get('/quotes/view/TEST')
         self.assertEquals(200, response.status_code)
 
     def test_empty_index_quote(self):
+        Stock.mock_search([], symbol='EMPTY')
         response = self.client.post('/indexes/', {'user_id': 'test', 'user_name': 'test', 'text': 'create EMPTY'})
         self.assertContains(response, 'EMPTY')
         response = self.client.get('/quotes/view/EMPTY')
@@ -40,11 +53,19 @@ class QuotesTestCase(TestCase):
 
 class AggregatorTestCase(TestCase):
     def setUp(self):
+        ApiResource.enable_mocks = True
+        mock_market()
+
         self.stock_handler = StockHandler()
         self.option_handler = OptionHandler()
 
-        stock_identifiers = ['MSFT', 'AMZN', 'AAPL']
-        option_identifiers = ['SNAP6P', 'AAPL200C', 'AMZN1800C']
+        stock_identifiers = ['FAKED', 'FAKEE', 'FAKEF']
+        option_identifiers = ['FAKED6P', 'FAKEE200C', 'FAKEF1800C']
+
+        ApiResource.mock_results = {}
+
+        mock_stock_workflow(*stock_identifiers)
+        mock_option_workflow(*option_identifiers)
 
         self.instruments = {}
         self.instruments.update(self.stock_handler.find_instruments(*stock_identifiers))

@@ -1,5 +1,5 @@
 from robinhood.api import ApiModel, ApiResource
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from pytz import timezone
 
 class Authentication(ApiResource):
@@ -43,12 +43,12 @@ class Market(ApiResource):
         'todays_hours': Hours
     }
 
-    def hours(self, date = None):
-        if not date:
-            date = datetime.now(self.timezone)
-        if isinstance(date, datetime):
-            date = date.strftime("%Y-%m-%d")
-        endpoint = "/markets/{}/hours/{}".format(self.mic, date)
+    def hours(self, market_date = None):
+        if not market_date:
+            market_date = datetime.now(timezone('US/Eastern')).date()
+        if isinstance(market_date, datetime):
+            market_date = market_date.date()
+        endpoint = "/markets/{}/hours/{}/".format(self.mic, market_date)
         cls = self.__class__.Hours
         return cls(**cls.request(endpoint))
 
@@ -144,7 +144,13 @@ class Stock(Instrument):
 
         attributes = {
             'previous_close_price': float,
+            'previous_close_time': datetime,
+            'open_price': float,
+            'open_time': datetime,
             'instrument': str,
+            'bounds': str,
+            'span': str,
+            'interval': str
         }
 
         class Item(HistoricalItem):
@@ -185,10 +191,10 @@ class Option(Instrument):
     endpoint_path = "/options/instruments"
     attributes = {
         'id': str,
-        'issue_date': datetime,
+        'issue_date': date,
         'tradability': str,
         'strike_price': float,
-        'expiration_date': datetime,
+        'expiration_date': date,
         'chain_id': str,
         'type': str,
         'chain_symbol': str,
@@ -217,7 +223,10 @@ class Option(Instrument):
         cache_timeout = 300
 
         attributes = {
-            'instrument': str
+            'instrument': str,
+            'span': str,
+            'interval': str,
+            'bounds': str
         }
 
         class Item(HistoricalItem):
