@@ -351,7 +351,10 @@ def assets_to_str(assets, quotes, total_value, is_owner):
             real_amount = a.count
 
         real_value = asset_value(quotes, a)
-        proportion = real_value / total_value
+        if total_value > 0:
+            proportion = real_value / total_value
+        else:
+            proportion = 0
 
         if is_owner:
             # Show actual number of "shares" in the index and their combined value
