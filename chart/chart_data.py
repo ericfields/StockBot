@@ -35,7 +35,15 @@ class ChartData():
         current_value = 0
         for asset in assets:
             asset_quote = quotes[asset.instrument_url]
-            current_value += asset_quote.price() * asset.count * asset.unit_count()
+            # If this is an expired option, it will have a quoted value of zero.
+            # However, it may have expired in the money, in which case Robinhood
+            # will have sold it and converted it to cash. Use its last quoted value
+            # as the current value instead for better accuracy.
+            if asset.type == asset.OPTION and asset_quote.price() == 0:
+                asset_current_value = asset_quote.previous_close_price
+            else:
+                asset_current_value = asset_quote.price()
+            current_value += asset_current_value * asset.count * asset.unit_count()
 
         return current_value
 
@@ -43,11 +51,6 @@ class ChartData():
         reference_price = 0
 
         for asset in assets:
-            # Get the expiration date if this is an option
-            expiration_date = None
-            if asset.type == asset.OPTION:
-                expiration_date = asset.instrument().expiration_date
-
             asset_historicals = historicals[asset.instrument_url]
             if asset.type == asset.__class__.STOCK and asset_historicals.previous_close_price:
                 asset_reference_price = asset_historicals.previous_close_price
@@ -55,14 +58,13 @@ class ChartData():
                 asset_reference_price = 0
                 # Use the first non-zero price value
                 for h in asset_historicals.items:
-                    if not expiration_date or h.begins_at.date() <= expiration_date:
-                        if h.begins_at >= start_time:
-                            if h.open_price > 0:
-                                asset_reference_price = h.open_price
-                            elif h.close_price > 0:
-                                asset_reference_price = h.close_price
-                            if asset_reference_price:
-                                break
+                    if h.begins_at >= start_time:
+                        if h.open_price > 0:
+                            asset_reference_price = h.open_price
+                        elif h.close_price > 0:
+                            asset_reference_price = h.close_price
+                        if asset_reference_price:
+                            break
 
             reference_price += asset_reference_price * asset.count * asset.unit_count()
 
@@ -73,11 +75,6 @@ class ChartData():
         chart_price_map = {}
 
         for asset in assets:
-            # Get the expiration date if this is an option
-            expiration_date = None
-            if asset.type == asset.OPTION:
-                expiration_date = asset.instrument().expiration_date
-
             asset_historicals = historicals[asset.instrument_url]
             for h in asset_historicals.items:
                 # Check if the option is expired at this time
@@ -85,6 +82,5 @@ class ChartData():
                     if h.begins_at not in chart_price_map:
                         chart_price_map[h.begins_at] = 0
 
-                    if not expiration_date or h.begins_at.date() <= expiration_date:
-                        chart_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
+                    chart_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
         return chart_price_map

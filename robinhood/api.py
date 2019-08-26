@@ -282,7 +282,6 @@ class ApiResource(ApiModel):
                     data = response.json()
 
                     access_token = data['access_token']
-                    print(access_token)
                     refresh_token = data['refresh_token']
 
                     auth_refresh_duration = AUTH_DURATION / 2
@@ -380,6 +379,7 @@ class ApiResource(ApiModel):
             attempts -= 1
             try:
                 start_time = time()
+                #print_req(request_url)
                 response = requests.get(request_url, headers=headers)
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
