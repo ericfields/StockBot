@@ -6,6 +6,7 @@ from robinhood.models import Stock
 from datetime import datetime
 import re
 from django.db import connection
+from pytz import timezone
 
 import logging
 
@@ -315,6 +316,8 @@ def print_index(index, aggregator, is_owner=True):
     quotes = aggregator.quotes()
 
     assets = index.asset_set.all()
+    for a in assets:
+        a.instrument_object = aggregator.get_instrument(a.identifier)
     total_value = sum([asset_value(quotes, a) for a in assets])
 
     asset_str = assets_to_str(assets, quotes, total_value, is_owner)
@@ -342,6 +345,21 @@ def assets_to_str(assets, quotes, total_value, is_owner):
             asset_str += " (delisted)"
             asset_strs.append(asset_str)
             continue
+        elif a.type == Asset.OPTION:
+            # Print if the option has expired
+            now = datetime.now(timezone('US/Eastern'))
+            expiration_date = a.instrument().expiration_date
+            expiration_time = now.replace(
+                year=expiration_date.year,
+                month=expiration_date.month,
+                day=expiration_date.day,
+                hour=4
+            )
+            if now >= expiration_time:
+                asset_str += " (expired)"
+                asset_strs.append(asset_str)
+                continue
+
 
         asset_str += ": "
 
