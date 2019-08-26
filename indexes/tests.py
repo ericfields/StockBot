@@ -14,8 +14,8 @@ class IndexViewsTestCase(TestCase):
         mock_stock_workflow('AAPL', 'AMZN')
         name, response = self.create_index('bob', 'AAPL AMZN:2')
         self.assertContains(response, name)
-        self.assertContains(response, 'AAPL: 1')
-        self.assertContains(response, 'AMZN: 2')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
 
     def test_display_index(self):
         mock_stock_workflow('AAPL', 'AMZN')
@@ -23,25 +23,25 @@ class IndexViewsTestCase(TestCase):
         self.assertEquals(200, response.status_code)
         response = self.display_index('bob', name)
         self.assertContains(response, name)
-        self.assertContains(response, 'AAPL: 1')
-        self.assertContains(response, 'AMZN: 2')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
 
         # Test lowercase as well
         response = self.display_index('bob', name.lower())
         self.assertContains(response, name)
-        self.assertContains(response, 'AAPL: 1')
-        self.assertContains(response, 'AMZN: 2')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
 
     def test_create_multiple_indexes(self):
         mock_stock_workflow('AAPL', 'AMZN')
         name, response = self.create_index('bob', 'AAPL:3 AMZN:4')
         self.assertContains(response, name)
-        self.assertContains(response, 'AAPL: 3')
-        self.assertContains(response, 'AMZN: 4')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
         name, response = self.create_index('bob', 'AAPL:5 AMZN:6')
         self.assertContains(response, name)
-        self.assertContains(response, 'AAPL: 5')
-        self.assertContains(response, 'AMZN: 6')
+        self.assertContains(response, 'AAPL')
+        self.assertContains(response, 'AMZN')
 
     def test_list_multiple_indexes(self):
         mock_stock_workflow('AAPL', 'AMZN')

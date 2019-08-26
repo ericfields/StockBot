@@ -347,6 +347,8 @@ def assets_table(assets, quotes, total_value, is_owner):
     else:
         table_rows.append([ 'Asset', 'Change', '% of Index'])
 
+    assets = sorted(assets, reverse=True, key=lambda a: change_impact(a, quotes))
+
     for a in assets:
         row_asset = a.identifier
         row_percent_of_index = '0%'
@@ -357,9 +359,9 @@ def assets_table(assets, quotes, total_value, is_owner):
 
             quote = quotes[a.instrument_url]
             previous_close_price = quote.previous_close if a.type == Asset.STOCK else quote.previous_close_price
-            percent_change = (quote.price() - previous_close_price) / previous_close_price * 100
-            row_change = str(round(percent_change, 2)) + '%'
-            if percent_change > 0:
+            change = (quote.price() - previous_close_price) / previous_close_price * 100
+            row_change = str(round(change, 2)) + '%'
+            if change > 0:
                 row_change = '+' + row_change
         else:
             value = 0
@@ -384,6 +386,15 @@ def assets_table(assets, quotes, total_value, is_owner):
             table_rows.append([row_asset, row_change, row_percent_of_index])
 
     return mattermost_table(table_rows)
+
+def change_impact(asset, quotes):
+    if asset.instrument_url not in quotes:
+        return 0
+
+    quote = quotes[asset.instrument_url]
+    previous_close_price = quote.previous_close if asset.type == Asset.STOCK else quote.previous_close_price
+    value_change = (quote.price() - previous_close_price) * asset.count * asset.unit_count()
+    return abs(value_change)
 
 def asset_expired(asset):
     now = datetime.now(timezone('US/Eastern'))

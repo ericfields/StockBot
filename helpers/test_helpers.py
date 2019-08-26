@@ -76,6 +76,7 @@ def mock_stock_quote(instrument, price=random.uniform(10,100)):
         symbol=instrument.symbol,
         last_trade_price=price,
         last_extended_hours_trade_price=price*0.9,
+        previous_close=price*0.9,
         updated_at=datetime.now(),
         instrument=instrument.url
     )
