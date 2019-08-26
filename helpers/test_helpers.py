@@ -30,6 +30,13 @@ def mock_market():
         .format(market.mic, now.date())
     )
 
+def mock_index_workflow(index_name, *stock_symbols):
+    # Ensure that the check for a preexisting stock
+    # with the same name as the index is mocked
+    Stock.mock_search([], symbol=index_name)
+    if stock_symbols:
+        mock_stock_workflow(*stock_symbols)
+
 def mock_stock_workflow(*symbols):
     stocks = [mock_stock(s) for s in symbols]
     quotes = [mock_stock_quote(s) for s in stocks]

@@ -18,49 +18,58 @@ class QuotesTestCase(TestCase):
         self.client = Client()
 
     def test_stock_quote(self):
-        mock_stock_workflow('FAKE')
-        response = self.client.get('/quotes/view/FAKE')
+        stock_id = 'FAKE'
+        mock_stock_workflow(stock_id)
+        response = self.client.get('/quotes/view/' + stock_id)
         self.assertEquals(200, response.status_code)
 
     def test_option_quote(self):
         option_id = 'FAKE10P12-21'
-        mock_option_workflow('FAKE10P12-21')
+        mock_option_workflow(option_id)
         response = self.client.get('/quotes/view/' + option_id)
         self.assertEquals(200, response.status_code)
 
     def test_option_quote_without_expiration(self):
         option_id = 'FAKE10P'
-        mock_option_workflow('FAKE10P')
+        mock_option_workflow(option_id)
         response = self.client.get('/quotes/view/' + option_id)
         self.assertEquals(200, response.status_code)
 
     def test_index_quote(self):
-        mock_stock_workflow('FAKEA', 'FAKEB')
-
+        stock_ids = ['FAKEA', 'FAKEB']
         index_name = 'TEST'
-        create_cmd = 'create TEST FAKEA:1 FAKEB:2'
 
-        # Ensure that the check for a preexisting stock
-        # with the same name as the index is mocked
-        Stock.mock_search([], symbol=index_name)
+        mock_index_workflow(index_name, *stock_ids)
+
+        create_cmd = f"create {index_name} " + " ".join([f"{s}:{i+1}" for i, s in enumerate(stock_ids)])
 
         response = self.client.post('/indexes/', {
             'user_id': 'test',
             'user_name': 'test',
             'text': create_cmd}
         )
-        self.assertContains(response, 'TEST')
-        self.assertContains(response, 'FAKEA')
-        self.assertContains(response, 'FAKEB')
+        self.assertEquals(200, response.status_code)
+        self.assertContains(response, index_name)
+        for s in stock_ids:
+            self.assertContains(response, s)
 
-        response = self.client.get('/quotes/view/TEST')
+        response = self.client.get('/quotes/view/' + index_name)
         self.assertEquals(200, response.status_code)
 
     def test_empty_index_quote(self):
-        Stock.mock_search([], symbol='EMPTY')
-        response = self.client.post('/indexes/', {'user_id': 'test', 'user_name': 'test', 'text': 'create EMPTY'})
-        self.assertContains(response, 'EMPTY')
-        response = self.client.get('/quotes/view/EMPTY')
+        index_name = 'EMPTY'
+        mock_index_workflow(index_name)
+
+        create_cmd = f"create {index_name}"
+        response = self.client.post('/indexes/', {
+            'user_id': 'test',
+            'user_name': 'test',
+            'text': create_cmd}
+        )
+        self.assertEquals(200, response.status_code)
+        self.assertContains(response, index_name)
+
+        response = self.client.get('/quotes/view/' + index_name)
         self.assertEquals(200, response.status_code)
 
 class AggregatorTestCase(TestCase):
@@ -72,7 +81,7 @@ class AggregatorTestCase(TestCase):
         self.option_handler = OptionHandler()
 
         stock_identifiers = ['FAKED', 'FAKEE', 'FAKEF']
-        option_identifiers = ['FAKED6P', 'FAKEE200C', 'FAKEF1800C']
+        option_identifiers = ['FAKED6P', 'FAKEE200C12-20', 'FAKEF1800C@1/1/2021']
 
         ApiResource.mock_results = {}
 
