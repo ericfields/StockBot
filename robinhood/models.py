@@ -140,6 +140,8 @@ class Stock(Instrument):
 
     class Fundamentals(ApiResource):
         endpoint_path = "/fundamentals"
+        authenticated = True
+
         attributes = {
             'description': str
         }
