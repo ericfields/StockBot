@@ -43,6 +43,11 @@ class ChartData():
         reference_price = 0
 
         for asset in assets:
+            # Get the expiration date if this is an option
+            expiration_date = None
+            if asset.type == asset.OPTION:
+                expiration_date = asset.instrument().expiration_date
+
             asset_historicals = historicals[asset.instrument_url]
             if asset.type == asset.__class__.STOCK and asset_historicals.previous_close_price:
                 asset_reference_price = asset_historicals.previous_close_price
@@ -50,13 +55,14 @@ class ChartData():
                 asset_reference_price = 0
                 # Use the first non-zero price value
                 for h in asset_historicals.items:
-                    if h.begins_at >= start_time:
-                        if h.open_price > 0:
-                            asset_reference_price = h.open_price
-                        elif h.close_price > 0:
-                            asset_reference_price = h.close_price
-                        if asset_reference_price:
-                            break
+                    if not expiration_date or h.begins_at.date() <= expiration_date:
+                        if h.begins_at >= start_time:
+                            if h.open_price > 0:
+                                asset_reference_price = h.open_price
+                            elif h.close_price > 0:
+                                asset_reference_price = h.close_price
+                            if asset_reference_price:
+                                break
 
             reference_price += asset_reference_price * asset.count * asset.unit_count()
 
@@ -65,11 +71,20 @@ class ChartData():
 
     def __get_chart_price_map(self, assets, historicals, start_time, end_time):
         chart_price_map = {}
+
         for asset in assets:
+            # Get the expiration date if this is an option
+            expiration_date = None
+            if asset.type == asset.OPTION:
+                expiration_date = asset.instrument().expiration_date
+
             asset_historicals = historicals[asset.instrument_url]
             for h in asset_historicals.items:
+                # Check if the option is expired at this time
                 if start_time <= h.begins_at <= end_time:
                     if h.begins_at not in chart_price_map:
                         chart_price_map[h.begins_at] = 0
-                    chart_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
+
+                    if not expiration_date or h.begins_at.date() <= expiration_date:
+                        chart_price_map[h.begins_at] += h.close_price * asset.count * asset.unit_count()
         return chart_price_map
