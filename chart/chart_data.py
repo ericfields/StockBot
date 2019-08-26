@@ -26,12 +26,10 @@ class ChartData():
         # Get current price quote concurrently in a separate thread to save time
         self.current_price = self.__get_index_current_value(assets, quotes)
 
-        self.reference_price = self.__get_reference_price(assets, historicals)
+        self.reference_price = self.__get_reference_price(assets, historicals, start_time)
 
         chart_price_map = self.__get_chart_price_map(assets, historicals, start_time, end_time)
         self.series = pd.Series(chart_price_map)
-
-        self.updated_at = datetime.now()
 
     def __get_index_current_value(self, assets, quotes):
         current_value = 0
@@ -41,7 +39,7 @@ class ChartData():
 
         return current_value
 
-    def __get_reference_price(self, assets, historicals):
+    def __get_reference_price(self, assets, historicals, start_time):
         reference_price = 0
 
         for asset in assets:
@@ -52,12 +50,13 @@ class ChartData():
                 asset_reference_price = 0
                 # Use the first non-zero price value
                 for h in asset_historicals.items:
-                    if h.open_price > 0:
-                        asset_reference_price = h.open_price
-                    elif h.close_price > 0:
-                        asset_reference_price = h.close_price
-                    if asset_reference_price:
-                        break
+                    if h.begins_at >= start_time:
+                        if h.open_price > 0:
+                            asset_reference_price = h.open_price
+                        elif h.close_price > 0:
+                            asset_reference_price = h.close_price
+                        if asset_reference_price:
+                            break
 
             reference_price += asset_reference_price * asset.count * asset.unit_count()
 
