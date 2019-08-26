@@ -42,6 +42,17 @@ def mattermost_text(text, icon_url=None, in_channel=False):
         params['icon_url'] = icon_url
     return HttpResponse(json.dumps(params), content_type='application/json')
 
+def mattermost_table(rows):
+    if not rows:
+        raise Exception("At least one row is required to generate a Mattermost table")
+
+    header_row_columns = rows.pop(0)
+    table_text = '|' + '|'.join(header_row_columns) + "|\n|" + "|".join(["----"] * len(header_row_columns)) + "|"
+    for columns in rows:
+        table_text += "\n|" + '|'.join(columns) + '|'
+    return table_text
+
+
 QUOTE_HANDLERS = [StockHandler, OptionHandler]
 def valid_format_example_str():
     return "\n\t".join(["{}: {}".format(h.TYPE, h.EXAMPLE) for h in QUOTE_HANDLERS])

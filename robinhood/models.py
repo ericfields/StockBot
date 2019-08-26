@@ -130,6 +130,7 @@ class Stock(Instrument):
             'symbol': str,
             'last_trade_price': float,
             'last_extended_hours_trade_price': float,
+            'previous_close': float,
             'updated_at': datetime,
             'instrument': str
         }

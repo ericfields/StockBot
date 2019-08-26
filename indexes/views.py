@@ -1,5 +1,5 @@
 from .models import User, Index, Asset
-from helpers.utilities import mattermost_text
+from helpers.utilities import mattermost_text, mattermost_table
 from quotes.aggregator import Aggregator
 from exceptions import BadRequestException
 from robinhood.models import Stock
@@ -320,12 +320,12 @@ def print_index(index, aggregator, is_owner=True):
         a.instrument_object = aggregator.get_instrument(a.identifier)
     total_value = sum([asset_value(quotes, a) for a in assets])
 
-    asset_str = assets_to_str(assets, quotes, total_value, is_owner)
+    asset_str = assets_table(assets, quotes, total_value, is_owner)
 
     index_str = index.name
     if is_owner:
         index_str += " (${:,.2f}):".format(total_value)
-    index_str += "\n\t{}".format(asset_str)
+    index_str += "\n\n{}".format(asset_str)
 
     return mattermost_text(index_str)
 
@@ -337,51 +337,61 @@ def asset_value(quotes, asset, count=None):
     else:
         return 0
 
-def assets_to_str(assets, quotes, total_value, is_owner):
-    asset_strs = []
+def assets_table(assets, quotes, total_value, is_owner):
+    if not assets:
+        return "No assets in index"
+
+    table_rows = []
+    if is_owner:
+        table_rows.append([ 'Asset', 'Change', 'Count', 'Value', '% of Index' ])
+    else:
+        table_rows.append([ 'Asset', 'Change', '% of Index'])
+
     for a in assets:
-        asset_str = a.identifier
-        if a.instrument_url not in quotes:
-            asset_str += " (delisted)"
-            asset_strs.append(asset_str)
-            continue
-        elif a.type == Asset.OPTION:
-            # Print if the option has expired
-            now = datetime.now(timezone('US/Eastern'))
-            expiration_date = a.instrument().expiration_date
-            expiration_time = now.replace(
-                year=expiration_date.year,
-                month=expiration_date.month,
-                day=expiration_date.day,
-                hour=4
-            )
-            if now >= expiration_time:
-                asset_str += " (expired)"
-                asset_strs.append(asset_str)
-                continue
+        row_asset = a.identifier
+        row_percent_of_index = '0%'
+        row_change = '0%'
 
+        if a.instrument_url in quotes:
+            value = asset_value(quotes, a)
 
-        asset_str += ": "
-
-        if a.count % 1 == 0:
-            real_amount = round(a.count)
+            quote = quotes[a.instrument_url]
+            previous_close_price = quote.previous_close if a.type == Asset.STOCK else quote.previous_close_price
+            percent_change = (quote.price() - previous_close_price) / previous_close_price * 100
+            row_change = str(round(percent_change, 2)) + '%'
+            if percent_change > 0:
+                row_change = '+' + row_change
         else:
-            real_amount = a.count
+            value = 0
+            if a.type == Asset.OPTION and asset_expired(a):
+                row_asset += ' (expired)'
+            else:
+                row_asset += ' (delisted)'
 
-        real_value = asset_value(quotes, a)
+        row_value = '$' + str(round(value, 2))
+
         if total_value > 0:
-            proportion = real_value / total_value
-        else:
-            proportion = 0
+            row_percent_of_index = str(round(value / total_value * 100, 2)) + '%'
 
         if is_owner:
-            # Show actual number of "shares" in the index and their combined value
-            asset_str += "{} (${:.2f}, {:.2f}%)".format(real_amount, real_value, proportion * 100)
-        else:
-            # Only show the percentage that each stock/option makes up in the index
-            asset_str += "{:.2f}%".format(proportion * 100)
+            if a.count % 1 == 0:
+                row_count = str(round(a.count))
+            else:
+                row_count = str(a.count)
 
-        asset_strs.append(asset_str)
-    if not asset_strs:
-        return "No assets in index"
-    return "\n\t".join(asset_strs)
+            table_rows.append([row_asset, row_change, row_count, row_value, row_percent_of_index])
+        else:
+            table_rows.append([row_asset, row_change, row_percent_of_index])
+
+    return mattermost_table(table_rows)
+
+def asset_expired(asset):
+    now = datetime.now(timezone('US/Eastern'))
+    expiration_date = asset.instrument().expiration_date
+    expiration_time = now.replace(
+        year=expiration_date.year,
+        month=expiration_date.month,
+        day=expiration_date.day,
+        hour=4
+    )
+    return now >= expiration_time
