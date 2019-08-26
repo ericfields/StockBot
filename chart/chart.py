@@ -135,9 +135,9 @@ class Chart():
             else:
                 series.at[self.end_time] = current_price
 
-            # Week charts are ugly due to gaps in after-hours/weekend trading activity.
+            # Charts with hourly intervals are ugly due to gaps in after-hours/weekend trading activity.
             # Re-index these graphs in a way that hides the gaps (at the cost of time accuracy)
-            if timedelta(days=1) < self.span < timedelta(weeks=2):
+            if timedelta(days=1) < self.span < timedelta(weeks=12):
                 series = self.__normalize_indices(series)
 
             if self.hide_value:

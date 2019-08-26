@@ -282,6 +282,7 @@ class ApiResource(ApiModel):
                     data = response.json()
 
                     access_token = data['access_token']
+                    print(access_token)
                     refresh_token = data['refresh_token']
 
                     auth_refresh_duration = AUTH_DURATION / 2

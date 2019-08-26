@@ -100,6 +100,12 @@ class Instrument(ApiResource):
         elif span <= timedelta(days=7):
             params['span'] = 'week'
             params['interval'] = '10minute'
+        elif span <= timedelta(days=30):
+            params['span'] = 'month'
+            params['interval'] = 'hour'
+        elif span <= timedelta(days=90):
+            params['span'] = '3month'
+            params['interval'] = 'hour'
         elif span <= timedelta(days=365):
             params['span'] = 'year'
             params['interval'] = 'day'
