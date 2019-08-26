@@ -22,6 +22,18 @@ class QuotesTestCase(TestCase):
         response = self.client.get('/quotes/view/FAKE')
         self.assertEquals(200, response.status_code)
 
+    def test_option_quote(self):
+        option_id = 'FAKE10P12-21'
+        mock_option_workflow('FAKE10P12-21')
+        response = self.client.get('/quotes/view/' + option_id)
+        self.assertEquals(200, response.status_code)
+
+    def test_option_quote_without_expiration(self):
+        option_id = 'FAKE10P'
+        mock_option_workflow('FAKE10P')
+        response = self.client.get('/quotes/view/' + option_id)
+        self.assertEquals(200, response.status_code)
+
     def test_index_quote(self):
         mock_stock_workflow('FAKEA', 'FAKEB')
 

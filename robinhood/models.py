@@ -1,6 +1,7 @@
 from robinhood.api import ApiModel, ApiResource
 from datetime import datetime, date, timedelta
 from pytz import timezone
+from dateutil import parser as dateparser
 
 class Authentication(ApiResource):
     endpoint_path = "/api-token-auth"
@@ -46,7 +47,9 @@ class Market(ApiResource):
     def hours(self, market_date = None):
         if not market_date:
             market_date = datetime.now(timezone('US/Eastern')).date()
-        if isinstance(market_date, datetime):
+        elif type(market_date) is str:
+            market_date = dateparser.parse(market_date).date()
+        elif isinstance(market_date, datetime):
             market_date = market_date.date()
         endpoint = "/markets/{}/hours/{}/".format(self.mic, market_date)
         cls = self.__class__.Hours
@@ -57,9 +60,6 @@ class Instrument(ApiResource):
 
     def current_value(self):
         raise NotImplementedException(self.__class__, 'current_value')
-
-    def list_date(self):
-        raise NotImplementedException(self.__class__, 'list_date')
 
     def full_name(self):
         raise NotImplementedException(self.__class__, 'full_name')
@@ -162,7 +162,7 @@ class Stock(Instrument):
         'symbol': str,
         'simple_name': str,
         'name': str,
-        'list_date': datetime,
+        'list_date': date,
         'tradable_chain_id': str,
         'fundamentals': Fundamentals,
         'quote': Quote,
@@ -174,9 +174,6 @@ class Stock(Instrument):
 
     def current_value(self):
         return self.quote().last_trade_price
-
-    def list_date(self):
-        return self.list_date
 
     def full_name(self):
         return "{} ({})".format(self.name, self.symbol)
@@ -238,9 +235,6 @@ class Option(Instrument):
 
     def current_value(self):
         return self.quote().adjusted_mark_price
-
-    def list_date(self):
-        return self.issue_date
 
     def full_name(self):
         symbol = self.chain_symbol

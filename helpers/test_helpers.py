@@ -1,7 +1,7 @@
 from uuid import uuid4
 from robinhood.models import *
 from robinhood.option_handler import OptionHandler
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pytz import timezone
 import time
 import random
@@ -9,8 +9,9 @@ import random
 option_handler = OptionHandler()
 
 def mock_market():
-    now = datetime.now().astimezone(timezone('US/Eastern'))
-    today = datetime(year=now.year, month=now.month, day=now.day)
+    now = datetime.now(timezone('US/Eastern'))
+    # Rebuild to make it timezone-unaware while still keeping the correct timezone-aware date
+    now = datetime(year=now.year, month=now.month, day=now.day)
     market = Market(
         name='New York Stock Exchange',
         acronym='NYSE',
@@ -18,15 +19,15 @@ def mock_market():
         timezone='US/Eastern',
     )
     market_hours = Market.Hours(
-        opens_at=today.replace(hour=9, minute=30),
-        extended_opens_at=today.replace(hour=9, minute=0),
-        closes_at=today.replace(hour=16, minute=0),
-        extended_closes_at=today.replace(hour=18, minute=0),
+        opens_at=now.replace(hour=9, minute=30),
+        extended_opens_at=now.replace(hour=9, minute=0),
+        closes_at=now.replace(hour=16, minute=0),
+        extended_closes_at=now.replace(hour=18, minute=0),
         is_open=True
     )
     Market.mock_get(market, 'XNYS')
     Market.Hours.mock_get(market_hours, "https://api.robinhood.com/markets/{}/hours/{}/"
-        .format(market.mic, now.astimezone(timezone('US/Eastern')).date())
+        .format(market.mic, now.date())
     )
 
 def mock_stock_workflow(*symbols):
@@ -140,13 +141,13 @@ def mock_option_workflow(*identifiers):
 def mock_option(chain_symbol, strike_price, type, expiration_date):
     id = str(uuid4())
     chain_id = str(uuid4())
-    real_expiration_date = expiration_date or datetime.today().replace(hour=16, minute=0, second=0, microsecond=0)
+    option_expiration_date = expiration_date or date.today()
     option = Option(
         id=id,
-        issue_date=datetime.now() - timedelta(days=7),
+        issue_date=option_expiration_date - timedelta(days=7),
         tradability='tradeable',
         strike_price=strike_price,
-        expiration_date=real_expiration_date.date(),
+        expiration_date=option_expiration_date,
         chain_id=chain_id,
         type=type,
         chain_symbol=chain_symbol,
@@ -154,12 +155,19 @@ def mock_option(chain_symbol, strike_price, type, expiration_date):
         state='active',
         url='https://api.robinhood.com/options/instruments/' + id + '/'
     )
-    Option.mock_search(option, chain_symbol=option.chain_symbol,
-        type=option.type,
-        strike_price=option.strike_price,
-        expiration_date=expiration_date,
-        state=option.state
-    )
+
+    search_params = {
+        'chain_symbol': option.chain_symbol,
+        'type': option.type,
+        'strike_price': option.strike_price
+    }
+
+    if expiration_date:
+        search_params['expiration_date'] = expiration_date
+    else:
+        search_params['state'] = 'active'
+
+    Option.mock_search(option, **search_params)
     return option
 
 def mock_option_quote(instrument, price=random.uniform(10,100)):

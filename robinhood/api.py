@@ -363,7 +363,7 @@ class ApiResource(ApiModel):
 
         if ApiResource.enable_mock:
             # We have not mocked out a request for this resource, raise an error
-            print(f"WARNING: Unmocked request: {request_url}")
+            print(f"WARNING: Unmocked Robinhood request: {request_url}")
             raise NotFoundException(f"Mocking is currently enabled, but Robinhood request has not been mocked: {request_url}")
 
         headers = {}

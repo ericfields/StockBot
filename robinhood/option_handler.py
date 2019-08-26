@@ -20,12 +20,10 @@ class OptionHandler(InstrumentHandler):
             'chain_symbol': symbol,
             'strike_price': price,
             'type': type,
-            # Note: currently options in the Robinhood API cannot be searched
-            # based on their expiration date. This field is really only set for
-            # caching purposes. Robinhood will simply ignore it.
-            'expiration_date': expiration_date
         }
-        if not expiration_date:
+        if expiration_date:
+            params['expiration_date'] = expiration_date
+        else:
             # No expiration date provided, get options for the end of the week.
             # Need to ensure that only active options are returned.
             params['state'] = 'active'
@@ -90,6 +88,6 @@ class OptionHandler(InstrumentHandler):
             date_str = '/'.join([date_str[0:2], date_str[2:4], date_str[4:8]])
 
         try:
-            return dateparser.parse(date_str)
+            return dateparser.parse(date_str).date()
         except ValueError:
             raise BadRequestException("Invalid date: '{}'".format(date_str))
