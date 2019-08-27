@@ -83,8 +83,6 @@ class AggregatorTestCase(TestCase):
         stock_identifiers = ['FAKED', 'FAKEE', 'FAKEF']
         option_identifiers = ['FAKED6P', 'FAKEE200C12-20', 'FAKEF1800C@1/1/2021']
 
-        ApiResource.mock_results = {}
-
         mock_stock_workflow(*stock_identifiers)
         mock_option_workflow(*option_identifiers)
 
@@ -95,6 +93,7 @@ class AggregatorTestCase(TestCase):
         self.test_user = User.objects.create(id='testuser')
 
         self.identifiers = stock_identifiers + option_identifiers
+
 
     def test_quotes_with_identifiers(self):
         aggregator = Aggregator(*self.identifiers)

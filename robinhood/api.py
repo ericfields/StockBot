@@ -363,7 +363,6 @@ class ApiResource(ApiModel):
 
         if ApiResource.enable_mock:
             # We have not mocked out a request for this resource, raise an error
-            print(f"WARNING: Unmocked Robinhood request: {request_url}")
             raise NotFoundException(f"Mocking is currently enabled, but Robinhood request has not been mocked: {request_url}")
 
         headers = {}
@@ -461,16 +460,20 @@ class ApiResource(ApiModel):
         else:
             resource_url = cls.resource_url(resource_id)
         request_url = ApiResource.__request_url(resource_url)
-        ApiResource.mock_results[request_url] = result.raw_data()
+        ApiResource.__mock(request_url, result.raw_data())
 
     @classmethod
     def mock_search(cls, results, **params):
         if (type(results)) not in [list, set]:
             results = [results]
         request_url = ApiResource.__request_url(cls.resource_url(), **params)
-        ApiResource.mock_results[request_url] = {
+        ApiResource.__mock(request_url, {
             'results': [r.raw_data() for r in results]
-        }
+        })
+
+    def __mock(request_url, response):
+        ApiResource.mock_results[request_url] = response
+
 
     @classmethod
     def has_mock(cls, **params):
