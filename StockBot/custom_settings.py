@@ -1,4 +1,4 @@
-# Define a database here. Note that a database is required for the Portfolio feature.
+# Define a database here. Note that a database is required for the Index feature.
 # https://docs.djangoproject.com/en/2.1/ref/settings/#databases
 # DATABASES = {
 #     'default': {

@@ -133,7 +133,7 @@ def rename_index(index, parts):
 
     # Check index name
     name = parts[0].upper()
-    valid_portfolio_name(name)
+    valid_index_name(name)
 
     try:
         existing_index = Index.objects.get(name=name)
@@ -181,7 +181,7 @@ def create_index(user, parts):
 
     # Check for index name
     name = parts[0].upper()
-    valid_portfolio_name(name)
+    valid_index_name(name)
 
     index = None
 
@@ -300,7 +300,7 @@ def get_or_create_user(request):
         user.save()
     return user
 
-def valid_portfolio_name(name):
+def valid_index_name(name):
     name = name.upper()
     if not re.match('^[A-Z]{1,14}$', name):
         raise BadRequestException("Invalid name: '{}'. Symbol must be an alphabetic string no longer than 14 characters.".format(name))

@@ -77,7 +77,7 @@ Similarly, to remove assets:
 
 If you do not specify the number of assets to remove, all shares/contracts for that asset will be removed.
 
-`/index remove AAPL` (removes both AAPL shares from the portfolio)
+`/index remove AAPL` (removes both AAPL shares from the index)
 
 You can specify multiple assets to add/remove:
 
