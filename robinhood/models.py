@@ -295,6 +295,7 @@ class NewsItem(ApiModel):
 
 class News(ApiResource):
     endpoint_path = "/midlands/news"
+    authenticated = True
 
     class Item(NewsItem):
         list_key = 'results'
