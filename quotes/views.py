@@ -174,6 +174,7 @@ def get_indexes(aggregator, identifiers):
             for index in Index.objects.all():
                 indexes.append(index)
                 identifiers.discard(index.name)
+                indexes.append(find_index('VOO'))
             identifiers.discard('EVERYONE')
         else:
             for identifier in list(identifiers):
