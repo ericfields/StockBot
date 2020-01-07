@@ -28,13 +28,16 @@ INDEX_COMMANDS = [
     'remove'
 ]
 
+INDEX_NAME_PATTERN = '^[A-Za-z]{1,14}$'
+
 logger = logging.getLogger('stockbot')
 
 def index(request):
     if not DATABASE_PRESENT:
         raise BadRequestException("No indexes database has been configured for this StockBot instance.")
 
-    if request.POST.get('text', None):
+    request_text = request.POST.get('text', None)
+    if request_text and request_text.strip():
         return index_action(request)
     else:
         return display_index(request)
@@ -43,7 +46,9 @@ def index_action(request):
     body = request.POST.get('text', None)
     parts = re.split('[,\s]+', body)
     # Remove empty parts
-    parts = list(filter(None, parts))
+    parts = [p for p in parts if p.strip()]
+    if not parts:
+        return display_index(request, None)
 
     command = parts[0]
     parts.pop(0)
@@ -53,7 +58,7 @@ def index_action(request):
     user = get_or_create_user(request)
 
     if command.lower() not in INDEX_COMMANDS:
-        if re.match('^[A-Za-z]{1,14}$', command):
+        if re.match(INDEX_NAME_PATTERN, command):
             try:
                 return display_index(request, command)
             except BadRequestException:
@@ -66,19 +71,31 @@ def index_action(request):
     if command == 'create':
         return create_index(user, parts)
 
-    if parts and re.match('^[A-Z]{1,14}$', parts[0]):
-        index_name = parts[0]
-    else:
-        index_name = None
-    index = find_index(user, index_name)
-    if index_name and index.name == index_name:
-        # This first part is an index name, remove it from the rest
+    user_indexes = Index.objects.filter(user=user)
+
+    if len(user_indexes) == 0:
+        raise BadRequestException(f"You do not have any indexes. You must create an index to use the {command} command.")
+
+    if len(user_indexes) == 1:
+        index = user_indexes[0]
+        if parts and parts[0].upper() == index.name:
+            # The index name was provided unnecessarily, simply ignore it
+            parts.pop(0)
+    elif is_valid_index_name(parts[0]):
+        try:
+            index = next(i for i in user_indexes if i.name == parts[0].upper())
+        except StopIteration:
+            raise BadRequestException(f"You do not have an index named '{parts[0].upper()}'")
         parts.pop(0)
+    else:
+        return mattermost_text("You have multiple indexes. You must specify the index you want to modify.\n\t"        + "\n\t".join([p.name for p in user_indexes]))
 
     if command == 'rename':
-        return rename_index(index, parts)
+        return rename_index(index, parts[0].upper())
 
     if command == 'destroy':
+        if parts and parts[0].upper() != index.name:
+            raise BadRequestException(f"You do not have an index named '{parts[0].upper()}'")
         return delete_index(index)
 
     if command == 'remove':
@@ -127,51 +144,22 @@ def display_index(request, index_name=None):
 
     return print_index(index, aggregator, index.user == user)
 
-def rename_index(index, parts):
-    if not parts:
-        raise BadRequestException("Usage: /index rename [newname]")
-
-    # Check index name
-    name = parts[0].upper()
-    valid_index_name(name)
+def rename_index(index, new_index_name):
+    validate_index_name(new_index_name)
 
     try:
-        existing_index = Index.objects.get(name=name)
+        existing_index = Index.objects.get(name=new_index_name)
         if existing_index.user_id == user.id:
-            raise BadRequestException("Your index is already named {}".format(name))
+            raise BadRequestException("You already have an index named {}".format(new_index_name))
         else:
-            raise BadRequestException("{} already exists and belongs to {}".format(name, existing_index.user.name))
+            raise BadRequestException("{} already exists and belongs to {}".format(new_index_name, existing_index.user.name))
     except Index.DoesNotExist:
-        # Rename the user's current index name
         pass
 
-    index.name = name
+    index.name = new_index_name
     index.save()
 
-    return mattermost_text("Index renamed to {}".format(name))
-
-def find_index(user, index_name=None):
-    if index_name:
-        try:
-            index = Index.objects.get(name=index_name)
-            if index.user != user:
-                raise BadRequestException("You do not own this index.")
-            return index
-        except Index.DoesNotExist:
-            # Provided field may not actually be an index name, but an instrument.
-            # If so, simply use the user's one and only index if they have one.
-            pass
-
-    indexes = Index.objects.filter(user=user)
-    if not indexes:
-        raise BadRequestException("You do not have an index")
-    elif len(indexes) == 1:
-        index = indexes[0]
-    else:
-        raise BadRequestException("You have multiple indexes. Specify the index you want to interact with.\n\t" +
-            "\n\t".join([p.name for p in indexes])
-        )
-    return index
+    return mattermost_text("Index renamed to {}".format(new_index_name))
 
 def create_index(user, parts):
     usage_str = "Usage: /index create [name] [stock1:count, [stock2: count, [option1: count...]]]"
@@ -181,7 +169,7 @@ def create_index(user, parts):
 
     # Check for index name
     name = parts[0].upper()
-    valid_index_name(name)
+    validate_index_name(name)
 
     index = None
 
@@ -300,16 +288,22 @@ def get_or_create_user(request):
         user.save()
     return user
 
-def valid_index_name(name):
+def is_valid_index_name(name):
+    try:
+        validate_index_name(name)
+        return True
+    except BadRequestException:
+        return False
+
+def validate_index_name(name):
     name = name.upper()
-    if not re.match('^[A-Z]{1,14}$', name):
+    if not re.match(INDEX_NAME_PATTERN, name):
         raise BadRequestException("Invalid name: '{}'. Symbol must be an alphabetic string no longer than 14 characters.".format(name))
     if name == 'EVERYONE':
         raise BadRequestException("'EVERYONE' is a reserved keyword. You must choose a different name for your index.")
     # Verify that this index name does not match a stock name
     if Stock.search(symbol=name):
         raise BadRequestException("Can't use this name; a stock named {} already exists".format(name))
-    return True
 
 
 def print_index(index, aggregator, is_owner=True):
