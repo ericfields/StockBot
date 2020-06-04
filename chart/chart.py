@@ -34,6 +34,7 @@ class Chart():
         LIGHT_GREEN = [0, 0.85, 0, 1]
         LIME_GREEN = [0, 1, 0, 1]
         LIGHT_BLUE = [0, 1, 1, 1]
+
         BLUE = [0, 0.5, 1, 1]
 
         RED = [1, 0, 0, 1]
@@ -208,9 +209,29 @@ class Chart():
                 price_change = 1.0
             else:
                 price_change = chart_data.current_price / chart_data.reference_price
-            if price_change < 1.0:
+            if price_change <= 1.0:
                 break
             positive_colors.append(positive_color_list[color_index])
+            positive_patterns.append(pattern_list[pattern_index])
+
+            pattern_index += 1
+            if pattern_index >= len(pattern_list):
+                pattern_index = 0
+                color_index += 1
+
+        neutral_color = Chart.Color.BLUE.value
+        neutral_patterns = []
+        color_index = 0
+        pattern_index = 0
+
+        for chart_data in chart_data_sets:
+            if chart_data.reference_price == 0:
+                price_change = 1.0
+            else:
+                price_change = chart_data.current_price / chart_data.reference_price
+            if price_change != 1.0:
+                break
+            positive_colors.append(neutral_color)
             positive_patterns.append(pattern_list[pattern_index])
 
             pattern_index += 1
