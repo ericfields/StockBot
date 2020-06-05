@@ -43,6 +43,8 @@ class Chart():
         TANGERINE = [1, 0.75, 0, 1]
         YELLOW = [1, 1, 0, 1]
 
+        BLACK = [0, 0, 0, 1]
+
         POSITIVE_COLORS = [GREEN, LIGHT_GREEN, LIME_GREEN, LIGHT_BLUE]
         NEGATIVE_COLORS = [RED, ORANGE, TANGERINE, YELLOW]
 
@@ -299,8 +301,10 @@ class Chart():
         self.axis.set_title(title, **self.title_layout)
 
     def __show_price_info(self, current_price, reference_price):
-        if current_price >= reference_price:
+        if current_price > reference_price:
             market_color = Chart.Color.GREEN
+        elif current_price == reference_price:
+            market_color = Chart.Color.BLACK
         else:
             market_color = Chart.Color.RED
 
