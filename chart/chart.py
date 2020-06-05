@@ -33,7 +33,6 @@ class Chart():
         GREEN = [0, 0.5, 0, 1]
         LIGHT_GREEN = [0, 0.85, 0, 1]
         LIME_GREEN = [0, 1, 0, 1]
-        LIGHT_BLUE = [0, 1, 1, 1]
 
         BLUE = [0, 0.5, 1, 1]
 
@@ -45,8 +44,9 @@ class Chart():
 
         BLACK = [0, 0, 0, 1]
 
-        POSITIVE_COLORS = [GREEN, LIGHT_GREEN, LIME_GREEN, LIGHT_BLUE]
-        NEGATIVE_COLORS = [RED, ORANGE, TANGERINE, YELLOW]
+        POSITIVE_COLORS = [GREEN, LIGHT_GREEN, LIME_GREEN]
+        NEUTRAL_COLORS = [BLUE]
+        NEGATIVE_COLORS = [RED, ORANGE, TANGERINE]
 
     class Pattern(Enum):
         SOLID = (0, ())
@@ -197,73 +197,53 @@ class Chart():
             return 1
         return chart_data.current_price / chart_data.reference_price
 
+    def __get_colors_and_patterns(self, chart_data_sets, color_list):
+        pattern_list = list(p.value for p in Chart.Pattern)
+
+        colors = []
+        patterns = []
+
+        color_index = 0
+        pattern_index = 0
+
+        for chart_data in chart_data_sets:
+            colors.append(color_list[color_index])
+            patterns.append(pattern_list[pattern_index])
+
+            pattern_index += 1
+            if pattern_index >= len(pattern_list):
+                pattern_index = 0
+                color_index += 1
+                if color_index >= len(color_list):
+                    color_index = 0
+
+        return colors, patterns
+
     def __get_line_styles(self, chart_data_sets):
         pattern_list = list(p.value for p in Chart.Pattern)
 
-        positive_color_list = Chart.Color.POSITIVE_COLORS.value
-        positive_colors = []
-        positive_patterns = []
-        color_index = 0
-        pattern_index = 0
+        positive_chart_data = []
+        neutral_chart_data = []
+        negative_chart_data = []
 
         for chart_data in chart_data_sets:
             if chart_data.reference_price == 0:
                 price_change = 1.0
             else:
                 price_change = chart_data.current_price / chart_data.reference_price
-            if price_change <= 1.0:
-                break
-            positive_colors.append(positive_color_list[color_index])
-            positive_patterns.append(pattern_list[pattern_index])
-
-            pattern_index += 1
-            if pattern_index >= len(pattern_list):
-                pattern_index = 0
-                color_index += 1
-
-        neutral_color = Chart.Color.BLUE.value
-        neutral_patterns = []
-        color_index = 0
-        pattern_index = 0
-
-        for chart_data in chart_data_sets:
-            if chart_data.reference_price == 0:
-                price_change = 1.0
+            if price_change > 1:
+                positive_chart_data.append(chart_data)
+            elif price_change == 1:
+                neutral_chart_data.append(chart_data)
             else:
-                price_change = chart_data.current_price / chart_data.reference_price
-            if price_change != 1.0:
-                break
-            positive_colors.append(neutral_color)
-            positive_patterns.append(pattern_list[pattern_index])
+                negative_chart_data.append(chart_data)
 
-            pattern_index += 1
-            if pattern_index >= len(pattern_list):
-                pattern_index = 0
-                color_index += 1
+        positive_colors, positive_patterns = self.__get_colors_and_patterns(positive_chart_data, Chart.Color.POSITIVE_COLORS.value)
+        neutral_colors, neutral_patterns = self.__get_colors_and_patterns(neutral_chart_data, Chart.Color.NEUTRAL_COLORS.value)
+        negative_colors, negative_patterns = self.__get_colors_and_patterns(negative_chart_data, Chart.Color.NEGATIVE_COLORS.value)
 
-        negative_color_list = Chart.Color.NEGATIVE_COLORS.value
-        negative_colors = []
-        negative_patterns = []
-        color_index = 0
-        pattern_index = 0
-
-        for chart_data in reversed(chart_data_sets):
-            if chart_data.reference_price == 0:
-                price_change = 1.0
-            else:
-                price_change = chart_data.current_price / chart_data.reference_price
-            if price_change >= 1.0:
-                break
-            negative_colors.append(negative_color_list[color_index])
-            negative_patterns.append(pattern_list[pattern_index])
-
-            pattern_index += 1
-            if pattern_index >= len(pattern_list):
-                pattern_index = 0
-                color_index += 1
-
-        colors = positive_colors + list(reversed(negative_colors))
-        patterns = positive_patterns + list(reversed(negative_patterns))
+        colors = positive_colors + neutral_colors + list(reversed(negative_colors))
+        patterns = positive_patterns + neutral_patterns + list(reversed(negative_patterns))
         return colors, patterns
 
 
