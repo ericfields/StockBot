@@ -2,9 +2,23 @@
 
 StockBot allows a user to retrieve price charts for both stocks and options.
 
+## Raw Images
+
+The simplest way to view a stock graph is by hitting the `/quotes/view` endpoint. For example, if you are running StockBot locally, you can visit the following URL in a browser:
+
+`http://127.0.0.1:8000/quotes/view/AAPL`
+
+You'll be given a PNG with a graph of AAPL for the current day. This endpoint is ideal for testing functionality, or simply providing graph images alone when needed.
+
+Some examples:
+* `/quotes/view/AAPL`: Day chart of AAPL
+* `/quotes/view/AAPL/1w`: Day chart of AAPL for the past week
+* `/quotes/view/GME50.5C@12-21`: Day chart of GME 50.5 call expiring 12/21 (current year)
+* `/quotes/view/GME50.5P/1m`: Month chart of GME 50.5 put, expiring at the end of the week
+
 ## Mattermost Commands
 
-The Mattermost endpoint for retrieving quotes is `/stocks/quotes`.
+The Mattermost endpoint for retrieving quotes is `/quotes`.
 
 For the purpose of these examples, we will use a slash command called `/quote` to reference a command which calls the quotes endpoint.
 
@@ -87,14 +101,3 @@ When you quote multiple user indexes, a different line will be plotted for each 
 You can also quote indexes alongside stocks and options. You can quote up to ten stocks/options/indexes at once.
 
 `/quote MYSTUFF,YOURSTUFF,AMZN,AAPL`
-
-## GET endpoints:
-
-For testing or other purposes, there is also a standard GET endpoint configured for viewing charts. You can visit the endpoint /stocks/quotes/[stock_ticker] to retrieve a PNG image of the graph. For example, to get a PNG of the latest AAPL graph for the day: http://127.0.0.1:8000/stocks/quotes/AAPL
-
-Some examples:
-
-* `/stocks/quotes/AAPL`: Day chart of AAPL
-* `/stocks/quotes/AAPL/1w`: Chart of AAPL for the past week
-* `/stocks/quotes/MU50.5C@12-21`: Chart of MU 50.5 call expiring 12/21 (current year)
-* `/stocks/quotes/MU50.5P/1m`: Chart of MU 50.5 put, expiring at the end of the week, with data for the past month
