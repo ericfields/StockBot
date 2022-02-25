@@ -10,6 +10,7 @@ class User(models.Model):
         return self.name
 
 class Index(models.Model):
+    id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=14, unique=True)
 
@@ -30,6 +31,7 @@ class Index(models.Model):
         return self.name
 
 class Asset(models.Model):
+    id = models.AutoField(primary_key=True)
     index = models.ForeignKey(Index, on_delete=models.CASCADE)
     instrument_id = models.UUIDField(null=True)
     instrument_url = models.CharField(max_length=160, null=True)
