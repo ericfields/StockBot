@@ -4,7 +4,7 @@ from . import views
 
 urlpatterns = [
     path('', views.get_mattermost_chart),
-    path('all', views.get_mattermost_chart_for_all),
+    path('all', views.get_mattermost_chart),
     path('update/', views.update_mattermost_chart, name='quote_update'),
     path('image/<img_name>.png', views.get_chart_img, name='quote_img'),
     path('info', views.stock_info),

@@ -250,7 +250,7 @@ class Chart():
 
     def get_img_data(self):
         figure_img_data = BytesIO()
-        self.figure.savefig(figure_img_data, format='png', dpi=(100))
+        self.figure.savefig(figure_img_data, format='png', dpi=(100), transparent=True)
         plt.close(self.figure)
 
         return figure_img_data.getvalue()
