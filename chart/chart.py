@@ -21,11 +21,15 @@ class Chart():
 
     # Color for all general chart text
     TEXT_COLOR = 'grey'
+    TEXT_WEIGHT = 'bold'
+
+    matplotlib.rcParams['text.color'] = TEXT_COLOR
+    matplotlib.rcParams['font.weight'] = TEXT_WEIGHT
 
     # Colored areas indicating non-trading hours for day chart
     after_hours_tint = {'facecolor': 'grey', 'alpha': 0.1}
 
-    title_layout = {'horizontalalignment': 'left', 'x': 0.0, 'y': 1.15, 'color': TEXT_COLOR}
+    title_layout = {'horizontalalignment': 'left', 'x': 0.0, 'y': 1.15, 'color': TEXT_COLOR, 'fontweight': TEXT_WEIGHT}
     max_title_length = 64
 
     # Style for line indicating the opening price
@@ -186,7 +190,8 @@ class Chart():
 
 
         if not single_set:
-            self.axis.legend()
+            self.axis.legend(facecolor='none')
+
 
     def __get_start_and_end_time(self):
         now = datetime.now()
@@ -308,8 +313,7 @@ class Chart():
                 self.current_price_str = '${:,.2f}'.format(current_price)
             self.axis.text(self.current_price_xpos, self.price_info_height, self.current_price_str,
                 transform=plt.gcf().transFigure,
-                fontsize=self.current_price_fontsize,
-                color=Chart.TEXT_COLOR)
+                fontsize=self.current_price_fontsize)
 
         # Show the latest price/change on the graph
         price_change = current_price - reference_price
