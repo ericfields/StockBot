@@ -1,4 +1,5 @@
 import matplotlib
+from matplotlib import axes, figure
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -18,10 +19,13 @@ class Chart():
     # Size of the overall chart
     size = (7, 3)
 
+    # Color for all general chart text
+    TEXT_COLOR = 'grey'
+
     # Colored areas indicating non-trading hours for day chart
     after_hours_tint = {'facecolor': 'grey', 'alpha': 0.1}
 
-    title_layout = {'horizontalalignment': 'left', 'x': 0.0, 'y': 1.15}
+    title_layout = {'horizontalalignment': 'left', 'x': 0.0, 'y': 1.15, 'color': TEXT_COLOR}
     max_title_length = 64
 
     # Style for line indicating the opening price
@@ -90,7 +94,11 @@ class Chart():
         self.span = span
         self.hide_value = hide_value
 
+        self.figure: figure.Figure
+        self.axis: axes.Axes
         self.figure, self.axis = plt.subplots(1, figsize=self.size)
+
+        self.axis.tick_params(colors=Chart.TEXT_COLOR)
 
         self.__show_title(title)
         self.__show_chart_metadata()
@@ -300,7 +308,8 @@ class Chart():
                 self.current_price_str = '${:,.2f}'.format(current_price)
             self.axis.text(self.current_price_xpos, self.price_info_height, self.current_price_str,
                 transform=plt.gcf().transFigure,
-                fontsize=self.current_price_fontsize)
+                fontsize=self.current_price_fontsize,
+                color=Chart.TEXT_COLOR)
 
         # Show the latest price/change on the graph
         price_change = current_price - reference_price
