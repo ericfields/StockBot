@@ -15,7 +15,9 @@ MARKET = 'XNYS'
 
 DATABASE_PRESENT = bool(connection.settings_dict['NAME'])
 
-def build_chart(identifiers, span = 'day'):
+def build_chart(identifiers, span=None) -> Chart:
+    if not span:
+        span = 'day'
     span = str_to_duration(span)
 
     aggregator = Aggregator()

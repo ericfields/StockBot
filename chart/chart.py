@@ -89,6 +89,7 @@ class Chart():
     top_spacing = 0.8
 
     def __init__(self, title, span, market_timezone, market_hours, hide_value = False):
+        self.title = title
         self.market_timezone = market_timezone
         self.market_hours = market_hours
 
@@ -192,19 +193,6 @@ class Chart():
         if not single_set:
             self.axis.legend(facecolor='none')
 
-
-    def __get_start_and_end_time(self):
-        now = datetime.now()
-
-        end_time = self.market_hours.extended_closes_at
-        if now < end_time:
-            end_time = now
-        if self.span <= timedelta(days=1):
-            start_time = self.market_hours.extended_opens_at
-        else:
-            start_time = end_time - self.span
-        return start_time, end_time
-
     def __sort_by_gain(self, chart_data):
         if chart_data.reference_price == 0:
             return 1
@@ -261,7 +249,7 @@ class Chart():
 
 
 
-    def get_img_data(self):
+    def get_img_data(self) -> bytes:
         figure_img_data = BytesIO()
         self.figure.savefig(figure_img_data, format='png', dpi=(100), transparent=True)
         plt.close(self.figure)
