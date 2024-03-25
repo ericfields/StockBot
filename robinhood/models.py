@@ -120,6 +120,7 @@ class Instrument(ApiResource):
 
 class Stock(Instrument):
     endpoint_path = "/instruments"
+    cache_timeout = 600
 
     class Quote(ApiResource):
         endpoint_path = "/quotes"
