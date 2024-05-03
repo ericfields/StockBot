@@ -144,6 +144,14 @@ class Chart():
             current_price = chart_data.current_price
             reference_price = chart_data.reference_price
 
+            empty_chart = series.size == 0
+            
+            if empty_chart and self.hide_value:
+                # Change the zero values for current/reference price to 1's to represent a 0% change
+                # Otherwise things look...weird.
+                current_price = 1
+                reference_price = 1
+
             # Add the current price to the graph
             if self.now <= self.market_hours.extended_closes_at:
                 series.at[self.now] = current_price
@@ -157,11 +165,11 @@ class Chart():
 
             if self.hide_value:
                 # Do not show the actual dollar values. Only show as percentages.
-                if reference_price == 0:
-                    reference_price = 1.0
-                for t in series.index:
-                    series.at[t] = series.at[t] / reference_price
-                current_price /= reference_price
+                if reference_price != 0:
+                    for t in series.index:
+                        series.at[t] = series.at[t] / reference_price
+                    current_price /= reference_price
+                
                 reference_price = 1.0
 
             if single_set:
@@ -181,7 +189,12 @@ class Chart():
             line_pattern = patterns[style_index]
             style_index += 1
 
-            label = "{} ({:0.1f}%)".format(chart_data.name, (current_price - 1) * 100)
+            if empty_chart:
+                chart_price = 0
+            else:
+                chart_price = (current_price - 1) * 100
+
+            label = "{} ({:0.1f}%)".format(chart_data.name, chart_price)
 
             self.axis.plot(series,
                 color=line_color,
@@ -316,6 +329,7 @@ class Chart():
                 fontsize=self.current_price_fontsize)
 
         # Show the latest price/change on the graph
+        print(f"Current price: {current_price}, reference price: {reference_price}")
         price_change = current_price - reference_price
         if price_change >= 0:
             change_sign = '+'
