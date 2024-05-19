@@ -52,9 +52,12 @@ class Chart():
 
         BLACK = [0, 0, 0, 1]
 
+        NONE = [0, 0, 0, 0]
+
         POSITIVE_COLORS = [GREEN, LIGHT_GREEN, LIME_GREEN]
         NEUTRAL_COLORS = [BLUE]
         NEGATIVE_COLORS = [RED, ORANGE, TANGERINE]
+        EMPTY_COLORS = [NONE]
 
     class Pattern(Enum):
         SOLID = (0, ())
@@ -144,7 +147,7 @@ class Chart():
             current_price = chart_data.current_price
             reference_price = chart_data.reference_price
 
-            empty_chart = series.size == 0
+            empty_chart = self.__is_empty(chart_data)
             
             if empty_chart and self.hide_value:
                 # Change the zero values for current/reference price to 1's to represent a 0% change
@@ -190,11 +193,11 @@ class Chart():
             style_index += 1
 
             if empty_chart:
-                chart_price = 0
+                chart_price = "--"
             else:
-                chart_price = (current_price - 1) * 100
+                chart_price = f"{(current_price - 1) * 100:0.1f}%"
 
-            label = "{} ({:0.1f}%)".format(chart_data.name, chart_price)
+            label = f"{chart_data.name} ({chart_price})"
 
             self.axis.plot(series,
                 color=line_color,
@@ -217,9 +220,14 @@ class Chart():
         else:
             start_time = end_time - self.span
         return start_time, end_time
+    
+    def __is_empty(self, chart_data):
+        return chart_data.series.size == 0
 
     def __sort_by_gain(self, chart_data):
-        if chart_data.reference_price == 0:
+        if self.__is_empty(chart_data):
+            return -1000
+        elif chart_data.reference_price == 0:
             return 1
         return chart_data.current_price / chart_data.reference_price
 
@@ -251,25 +259,31 @@ class Chart():
         positive_chart_data = []
         neutral_chart_data = []
         negative_chart_data = []
+        empty_chart_data = []
 
         for chart_data in chart_data_sets:
-            if chart_data.reference_price == 0:
-                price_change = 1.0
+            if self.__is_empty(chart_data):
+                empty_chart_data.append(chart_data)
             else:
-                price_change = chart_data.current_price / chart_data.reference_price
-            if price_change > 1:
-                positive_chart_data.append(chart_data)
-            elif price_change == 1:
-                neutral_chart_data.append(chart_data)
-            else:
-                negative_chart_data.append(chart_data)
+                if chart_data.reference_price == 0:
+                    price_change = 1.0
+                else:
+                    price_change = chart_data.current_price / chart_data.reference_price
+
+                if price_change > 1:
+                    positive_chart_data.append(chart_data)
+                elif price_change == 1:
+                    neutral_chart_data.append(chart_data)
+                else:
+                    negative_chart_data.append(chart_data)
 
         positive_colors, positive_patterns = self.__get_colors_and_patterns(positive_chart_data, Chart.Color.POSITIVE_COLORS.value)
         neutral_colors, neutral_patterns = self.__get_colors_and_patterns(neutral_chart_data, Chart.Color.NEUTRAL_COLORS.value)
         negative_colors, negative_patterns = self.__get_colors_and_patterns(negative_chart_data, Chart.Color.NEGATIVE_COLORS.value)
+        empty_colors, empty_patterns = self.__get_colors_and_patterns(empty_chart_data, Chart.Color.EMPTY_COLORS.value)
 
-        colors = positive_colors + neutral_colors + list(reversed(negative_colors))
-        patterns = positive_patterns + neutral_patterns + list(reversed(negative_patterns))
+        colors = positive_colors + neutral_colors + list(reversed(negative_colors)) + empty_colors
+        patterns = positive_patterns + neutral_patterns + list(reversed(negative_patterns)) + empty_patterns
         return colors, patterns
 
 
@@ -329,7 +343,6 @@ class Chart():
                 fontsize=self.current_price_fontsize)
 
         # Show the latest price/change on the graph
-        print(f"Current price: {current_price}, reference price: {reference_price}")
         price_change = current_price - reference_price
         if price_change >= 0:
             change_sign = '+'
