@@ -1,6 +1,7 @@
 from django.core.cache import cache
 from django.urls import reverse
 from django.http import HttpRequest, HttpResponse
+from django.conf import settings
 
 from robinhood.models import Stock
 from helpers.utilities import str_to_duration, mattermost_text
@@ -73,6 +74,12 @@ def update_mattermost_chart(request: HttpRequest):
     }
     return HttpResponse(json.dumps(chart_response), content_type="application/json")
 
+def build_stockbot_url(request: HttpRequest, uri: str):
+    url = request.build_absolute_uri(uri)
+    if settings.USE_HTTPS_FOR_URLS:
+        url = url.replace('http://', 'https://')
+    return url
+
 def mattermost_chart(request: HttpRequest, identifiers: list, span: str):
     ids = identifiers.upper()
     # Replace slashes with hyphens for safety
@@ -88,8 +95,8 @@ def mattermost_chart(request: HttpRequest, identifiers: list, span: str):
     get_chart_img(request, img_file_name)
 
     image_path = reverse('quote_img', args=[img_file_name])
-    image_url = request.build_absolute_uri(image_path)
-    update_url = request.build_absolute_uri(reverse('quote_update'))
+    image_url = build_stockbot_url(request, image_path)
+    update_url = build_stockbot_url(request, reverse('quote_update'))
 
     actions = [
         mattermost_action(update_url, 'refresh', identifiers=ids, span=span),

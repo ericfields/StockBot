@@ -165,5 +165,7 @@ CACHES = {
 
 APPEND_SLASH = True
 
+USE_HTTPS_FOR_URLS = False
+
 # Override settings here with those from custom_settings.py
 from .custom_settings import *
