@@ -213,7 +213,7 @@ You can install the `pscopg2-binary` for Python as follows:
 pip install psycopg2-binary
 ```
 
-You can then configure the settings for this database in the Stockbot [database_settings.py](../StockBot/database_settings.py) file by uncommenting the following section:
+You can then configure the settings for this database in the Stockbot [custom_settings.py](../StockBot/custom_settings.py) file by uncommenting the following section:
 
 ```
 DATABASES = {
