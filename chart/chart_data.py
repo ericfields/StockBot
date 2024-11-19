@@ -34,16 +34,17 @@ class ChartData():
     def __get_index_current_value(self, assets, quotes):
         current_value = 0
         for asset in assets:
-            asset_quote = quotes[asset.instrument_url]
-            # If this is an expired option, it will have a quoted value of zero.
-            # However, it may have expired in the money, in which case Robinhood
-            # will have sold it and converted it to cash. Use its last quoted value
-            # as the current value instead for better accuracy.
-            if asset.type == asset.OPTION and asset_quote.price() == 0:
-                asset_current_value = asset_quote.previous_close_price
-            else:
-                asset_current_value = asset_quote.price()
-            current_value += asset_current_value * asset.count * asset.unit_count()
+            if asset.instrument_url in quotes:
+                asset_quote = quotes[asset.instrument_url]
+                # If this is an expired option, it will have a quoted value of zero.
+                # However, it may have expired in the money, in which case Robinhood
+                # will have sold it and converted it to cash. Use its last quoted value
+                # as the current value instead for better accuracy.
+                if asset.type == asset.OPTION and asset_quote.price() == 0:
+                    asset_current_value = asset_quote.previous_close_price
+                else:
+                    asset_current_value = asset_quote.price()
+                current_value += asset_current_value * asset.count * asset.unit_count()
 
         return current_value
 
