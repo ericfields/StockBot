@@ -7,7 +7,7 @@ from datetime import timedelta
 from uuid import UUID
 import json
 
-DURATION_FORMAT = '^([0-9]+)?\s*(day|week|month|year|all|d|w|m|y|a)s?$'
+DURATION_FORMAT = r'^([0-9]+)?\s*(day|week|month|year|all|d|w|m|y|a)s?$'
 
 def str_to_duration(duration_str):
     duration_str = duration_str.strip().lower()

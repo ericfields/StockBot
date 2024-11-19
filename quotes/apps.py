@@ -1,7 +1,7 @@
 from django.apps import AppConfig
 from robinhood.models import Market
 from robinhood.api import ApiResource
-from secrets import robinhood_credentials
+from credentials import robinhood_credentials
 import sys
 import logging
 
