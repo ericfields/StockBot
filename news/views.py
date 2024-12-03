@@ -59,8 +59,8 @@ def top_news_items(identifier):
     if not items:
         raise BadRequestException("No news found for stock ticker '{}'.".format(identifier))
 
-    # Sort initially by popularity, i.e. number of clicks
-    items.sort(key=lambda i: i.num_clicks, reverse=True)
+    # Sort initially by newest items
+    items.sort(key=lambda i: i.published_at, reverse=True)
 
     # Filters are defined here for attempting to sort news items by relevance.
     # The priority of the filters mirrors the order they are defined in here.
@@ -104,7 +104,7 @@ def source_matches(sources, news_item):
 # Priority of each filter is based on the order it is provided in,
 # i.e. filters are processed in reverse order
 def prioritize_items(items, *filters):
-    sorted_items = []
+    sorted_items = items
     for f in reversed(filters):
         sorted_items = list(filter(f, items))
         for i in items:
