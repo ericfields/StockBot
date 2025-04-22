@@ -91,7 +91,7 @@ def index_action(request):
         return mattermost_text("You have multiple indexes. You must specify the index you want to modify.\n\t"        + "\n\t".join([p.name for p in user_indexes]))
 
     if command == 'rename':
-        return rename_index(index, parts[0].upper())
+        return rename_index(user, index, parts[0].upper())
 
     if command == 'destroy':
         if parts and parts[0].upper() != index.name:
@@ -144,7 +144,7 @@ def display_index(request, index_name=None):
 
     return print_index(index, aggregator, index.user == user)
 
-def rename_index(index, new_index_name):
+def rename_index(user: User, index: str, new_index_name: str):
     validate_index_name(new_index_name)
 
     try:

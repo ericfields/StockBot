@@ -4,7 +4,7 @@ from dateutil import parser as dateparser
 import pytz
 import re
 import json
-from threading import Lock
+from threading import RLock
 from time import sleep
 import hashlib
 import logging
@@ -12,6 +12,7 @@ from time import time
 from helpers.cache import Cache
 import inspect
 from exceptions import NotFoundException
+from requests import Response
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
@@ -19,7 +20,7 @@ AUTH_INFO = {
     'url': ROBINHOOD_ENDPOINT + "/oauth2/token/",
     'headers': {
         'Content-Type': 'application/json',
-        'X-Robinhood-API-Version': '1.265.0'
+        'X-Robinhood-API-Version': '1.431.4'
     }
 }
 
@@ -177,10 +178,10 @@ class ApiResource(ApiModel):
 
     authenticated = False
 
-    auth_access_token = None
-    auth_refresh_token = None
+    auth_access_token = "eyJhbGciOiJFUzI1NiIsImtpZCI6IjIiLCJ0eXAiOiJKV1QifQ.eyJkY3QiOjE2NzA2MTkxMzEsImRldmljZV9oYXNoIjoiYjRmMWVlNzA5OWM2YjBmNTNiM2FhNTZlZjEyNTY1NzciLCJleHAiOjE3NDU5NDYxMDQsImxldmVsMl9hY2Nlc3MiOmZhbHNlLCJtZXRhIjp7Im9pZCI6ImM4MlNIMFdaT3NhYk9YR1Ayc3hxY2ozNEZ4a3ZmbldSWkJLbEJqRlMiLCJvbiI6IlJvYmluaG9vZCJ9LCJvcHRpb25zIjp0cnVlLCJwb3MiOiJwIiwic2NvcGUiOiJpbnRlcm5hbCIsInNlcnZpY2VfcmVjb3JkcyI6W3siaGFsdGVkIjpmYWxzZSwic2VydmljZSI6Im51bW11c191cyIsInNoYXJkX2lkIjoxLCJzdGF0ZSI6ImF2YWlsYWJsZSJ9LHsiaGFsdGVkIjpmYWxzZSwic2VydmljZSI6ImJyb2tlYmFja191cyIsInNoYXJkX2lkIjo0LCJzdGF0ZSI6ImF2YWlsYWJsZSJ9XSwic2xnIjoxLCJzbHMiOiJ4bkE0OExhM01MSzRISWRlaFNlS0FpT2IyRXVJaEozclpuRVdNMlFJTjJ6UzkwcnRFUXd2RFNYb3BzMFV5SlMveVp1dGRWWFdpdW1KMnR6VWh2SmpCUT09Iiwic3JtIjp7ImIiOnsiaGwiOmZhbHNlLCJyIjoidXMiLCJzaWQiOjR9LCJuIjp7ImhsIjpmYWxzZSwiciI6InVzIiwic2lkIjoxfX0sInRva2VuIjoic3c2aTh3Vkc1ZzdSRThMWldhSXVFaDllNVBERTZsIiwidXNlcl9pZCI6IjhiYThlZmI4LWE1YjEtNGU4NS1hYTM5LWNmNzA4NDllNzQwOSIsInVzZXJfb3JpZ2luIjoiVVMifQ.99H4ZKhgJP0Zm8kBzQ1GMnfojrhyr1Yimyfd013GZgOmpx-Lecv9uraTUdUHwEfltfU2kx3v1mj8F0oIx6DzkA"
+    auth_refresh_token = "PVMA29kLk7G385zjdn7qic7AdgbFhS"
     auth_expiration = None
-    auth_lock = Lock()
+    auth_lock = RLock()
 
     enable_cache = True
     cache_timeout = None
@@ -196,7 +197,7 @@ class ApiResource(ApiModel):
             results.extend([cls(**result) for result in data['results'] if result])
             if 'next' in data and data['next']:
                 # Keep requesting until all data has been returned
-                next_url = re.sub('\/', '/', data['next'])
+                next_url = re.sub('\\/', '/', data['next'])
                 data = cls.request(next_url)
             else:
                 break
@@ -204,7 +205,7 @@ class ApiResource(ApiModel):
 
     @classmethod
     def get(cls, resource_id, **params):
-        if re.match("^https:\/\/", str(resource_id)):
+        if re.match("^https:\\/\\/", str(resource_id)):
             resource_url = resource_id
         else:
             resource_url = cls.resource_url(resource_id)
@@ -216,21 +217,31 @@ class ApiResource(ApiModel):
 
 
     @staticmethod
-    def authenticate(force_reauth=False):
+    def authenticate(force_refresh=False, force_reauth=False):
         if ApiResource.enable_mock:
             # We are about to make an authentication request, which
             # should not occur when we are in mock mode
             raise Exception("Attempting to make authentication request when mocking enabled")
 
-        if not (ApiResource.username and ApiResource.password and ApiResource.device_token and ApiResource.oauth_client_id):
-            raise RobinhoodCredentialsException("Attempting to call authenticated endpoint, but one or more Robinhood credentials are missing for this server.")
+        missing_credentials = []
+        if not ApiResource.device_token:
+            missing_credentials.append('robinhood_device_token not set')
+        if not ApiResource.oauth_client_id:
+            missing_credentials.append('robinhood_oauth_client_id not set')
+
+        if not (ApiResource.auth_access_token or ApiResource.auth_refresh_token) and not (ApiResource.username and ApiResource.password):
+            missing_credentials.append('Must specify either robinhood_username/robinhood_password or robinhood_access_token/robinhood_refresh_token')
+        if missing_credentials:
+            missing_credentials_str = "; ".join(missing_credentials)
+            raise RobinhoodCredentialsException(f"One or more required Robinhood credentials are not present ({"; ".join(missing_credentials)})")
 
         # If authentication has already failed, do not try again
         if ApiResource.permanent_auth_failure:
             raise ApiResource.permanent_auth_failure
 
         # Use locking to make sure that we are not trying to authenticate
-        # from several thrads at once
+        # from several threads at once
+        # Release the lock first if we happen to own it
         ApiResource.auth_lock.acquire()
         try:
             # We should check the cache's value before our local instance,
@@ -238,8 +249,8 @@ class ApiResource(ApiModel):
             access_token = Cache.get('auth_access_token') or ApiResource.auth_access_token
             auth_expiration = Cache.get('auth_expiration') or ApiResource.auth_expiration
 
-            if not force_reauth:
-                if access_token and auth_expiration and datetime.now() < auth_expiration:
+            if not force_refresh and not force_reauth:
+                if access_token and (not auth_expiration or datetime.now() < auth_expiration):
                     return access_token
 
             refresh_token = Cache.get('auth_refresh_token') or ApiResource.auth_refresh_token
@@ -249,14 +260,20 @@ class ApiResource(ApiModel):
             while True:
                 attempts -= 1
 
+
+                auth_url: str = AUTH_INFO['url']
+                auth_headers: map = AUTH_INFO['headers']
+
                 if refresh_token and not force_reauth:
+                    print("Performing token refresh workflow...")
                     data = {
                         'grant_type': 'refresh_token',
                         'refresh_token': refresh_token,
                         'client_id': ApiResource.oauth_client_id,
-                        'device_token': ApiResource.device_token
+                        'device_token': ApiResource.device_token,
+                        'scope': 'internal'
                     }
-                else:
+                elif ApiResource.username and ApiResource.password:
                     data = {
                         'grant_type': 'password',
                         'expires_in': AUTH_DURATION.total_seconds(),
@@ -266,9 +283,11 @@ class ApiResource(ApiModel):
                         'device_token': ApiResource.device_token,
                         'scope': 'internal'
                     }
+                else:
+                    raise Exception("Authentication failed, and no remaining valid auth credentials. Cannot authenticate with Robinhood.")
 
                 try:
-                    response = requests.post(AUTH_INFO['url'], headers=AUTH_INFO['headers'], data=json.dumps(data))
+                    response = requests.post(auth_url, headers=auth_headers, json=data)
                 except requests.exceptions.ConnectionError as e:
                     # Occasional error, retry if possible
                     if attempts > 0:
@@ -276,7 +295,9 @@ class ApiResource(ApiModel):
                         continue
 
                     raise e
-
+                
+                if response.status_code != 200:
+                    print_response(response)
 
                 if response.status_code == 200:
                     data = response.json()
@@ -311,22 +332,25 @@ class ApiResource(ApiModel):
 
                 # If we reach this point we've likely received an authentication error
                 # Remove cached credentials and force reauthentication
-                force_reauth = True
-                Cache.delete('auth_access_token')
+                force_refresh = True
                 Cache.delete('auth_refresh_token')
                 Cache.delete('auth_expiration')
                 ApiResource.auth_access_token = None
-                ApiResource.auth_refresh_token = None
                 ApiResource.auth_expiration = None
 
                 if response.status_code == 401:
                     try:
                         response_data = response.json()
                         if 'error' in response_data and response_data['error'] == 'invalid_grant':
+                            print_response(response)
+                            print("Refresh token is invalid")
+                        
                             # Refresh token is no longer valid
                             # Remove it and re-attempt authentication with username/password
                             refresh_token = None
-                            continue
+
+
+                            return ApiResource.authenticate(force_reauth=True)
                     except ValueError:
                         # Response is not valid JSON, let remaining error logic handle it
                         pass
@@ -334,10 +358,12 @@ class ApiResource(ApiModel):
                 # Error codes other than these are considered to be permanent errors,
                 # due to invalid credentials or other issues with user-provided credentials.
                 if response.status_code == 403:
-                    error = ApiForbiddenException("Authentication is required for this endpoint, but credentials are expired or invalid.")
+                    print("Authentication failed")
+                    error = ApiForbiddenException(f"Authentication is required for this endpoint, but either credentials were not accepted, or 2FA is required.")
                 else:
+                    print("Unexpected auth response code: " + str(response.status_code))
                     request_details = "\n\tRequest URL: {}\n\tRequest headers: {}\n\tRequest data: {}".format(
-                        auth_url, auth_request_headers, data)
+                        auth_url, auth_headers, data)
                     error = ApiCallException(response.status_code, response.text + request_details)
                 ApiResource.permanent_auth_failure = error
                 raise error
@@ -377,8 +403,6 @@ class ApiResource(ApiModel):
         while True:
             attempts -= 1
             try:
-                start_time = time()
-                #print_req(request_url)
                 response = requests.get(request_url, headers=headers)
             except requests.exceptions.ConnectionError:
                 # Happens occasionally, retry
@@ -387,6 +411,9 @@ class ApiResource(ApiModel):
                 else:
                     raise ApiInternalErrorException(0, "Repeated connection errors when trying to call Robinhood")
                 continue
+
+            if response.status_code != 200:
+                print_response(response)
 
             if response.status_code == 200:
                 data = response.json()
@@ -401,7 +428,8 @@ class ApiResource(ApiModel):
                 if cls.authenticated:
                     if attempts > 0:
                         # Credentials may have expired, try reauthenticating
-                        access_token = ApiResource.authenticate(force_reauth=True)
+                        access_token = ApiResource.authenticate(force_refresh=True)
+                        
                         headers['Authorization'] = 'Bearer ' + access_token
                         continue
                     else:
@@ -409,9 +437,11 @@ class ApiResource(ApiModel):
                 else:
                     raise ApiUnauthorizedException("This API endpoint requires authentication: {}".format(cls.endpoint_path))
             elif response.status_code == 403:
+                print("Request authentication was rejected; access token likely expired/invalid. Refreshing...")
                 if attempts > 0:
                     # Credentials may have expired, try reauthenticating
-                    access_token = ApiResource.authenticate(force_reauth=True)
+                    access_token = ApiResource.authenticate(force_refresh=True)
+
                     headers['Authorization'] = 'Bearer ' + access_token
                     continue
                 else:
@@ -455,7 +485,7 @@ class ApiResource(ApiModel):
 
     @classmethod
     def mock_get(cls, result, resource_id):
-        if re.match("^https:\/\/", str(resource_id)):
+        if re.match("^https:\\/\\/", str(resource_id)):
             resource_url = resource_id
         else:
             resource_url = cls.resource_url(resource_id)
@@ -480,10 +510,10 @@ class ApiResource(ApiModel):
         request_url = ApiResource.__request_url(cls.resource_url(), **params)
         return request_url in ApiResource.mock_results
 
-    def __request_url(resource_url, **params):
+    def __request_url(resource_url: str, **params):
         request_url = resource_url
         # Convert a pathname to a full Robinhood URL
-        if re.match('^\/', resource_url):
+        if resource_url.startswith('/'):
             request_url = ROBINHOOD_ENDPOINT + request_url
 
         if params:
@@ -516,10 +546,14 @@ class ApiResource(ApiModel):
         return iter(self.items)
 
     def __next__(self):
-        return next(__iter__())
+        return next(self.__iter__())
 
-def print_req(url, headers=None):
-    print("Request: {}".format(url))
-    if headers:
-        for h in headers:
-            print("\n\t{}: {}".format(h, headers[h]))
+def print_response(response: Response):
+    print(f"{response.status_code} {response.reason}")
+    print(f"URL: {response.url}")
+    print(f"Response content: '{response.content.decode()}'")
+    request_body = response.request.body
+    if (request_body and type(request_body) == bytes):
+        request_body = request_body.decode()
+    print(f"Request content:{request_body}")
+    print(f"Request headers: {response.request.headers}")

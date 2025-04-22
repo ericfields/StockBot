@@ -52,7 +52,7 @@ class InstrumentHandler():
 
     ### End of methods/fields to implement
 
-    UUID_FORMAT = '.*\/?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$'
+    UUID_PATTERN = re.compile('.*\/?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/?$')
 
     def find_instruments(self, *identifiers):
         # Map of identifiers to their corresponding instruments
@@ -65,7 +65,10 @@ class InstrumentHandler():
             if type(identifier) != str:
                 raise Exception("Expected a string identifier, but was a {}".format(type(identifier)))
             if self.valid_url(identifier):
-                id = re.match(self.UUID_FORMAT, identifier)[1]
+                uuid_match = InstrumentHandler.UUID_PATTERN.match(identifier)
+                if not uuid_match:
+                    raise BadRequestException("Invalid {} UUID identifier in URL: '{}'".format(self.TYPE, identifier))
+                id = uuid_match[1]
                 get_params[identifier] = id
             elif re.match(self.FORMAT, identifier):
                 params = self.get_search_params(identifier)
@@ -165,7 +168,7 @@ class InstrumentHandler():
         return self.valid_url(identifier) or re.match(self.FORMAT, identifier)
 
     def valid_url(self, url):
-        return url.startswith(self.instrument_class().base_url()) and re.match(self.UUID_FORMAT, url)
+        return url.startswith(self.instrument_class().base_url()) and re.match(self.UUID_PATTERN, url)
 
     def build_search_url(self, params):
         # params is a dictionary of parameters to search for

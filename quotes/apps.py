@@ -7,6 +7,9 @@ import logging
 
 logger = logging.getLogger('stockbot')
 
+def get_credential(credential_key: str) -> str:
+    return getattr(robinhood_credentials, credential_key, None)
+
 class QuotesConfig(AppConfig):
     name = 'quotes'
 
@@ -20,13 +23,13 @@ class QuotesConfig(AppConfig):
             ApiResource.authenticate()
             self.preload_market_info()
 
-
     def load_auth_credentials(self):
-        if robinhood_credentials.robinhood_username and robinhood_credentials.robinhood_password:
-            ApiResource.username = robinhood_credentials.robinhood_username
-            ApiResource.password = robinhood_credentials.robinhood_password
-            ApiResource.oauth_client_id = robinhood_credentials.robinhood_oauth_client_id
-            ApiResource.device_token = robinhood_credentials.robinhood_device_token
+        ApiResource.username = get_credential('robinhood_username')
+        ApiResource.password = get_credential('robinhood_password')
+        ApiResource.oauth_client_id = get_credential('robinhood_oauth_client_id')
+        ApiResource.device_token = get_credential('robinhood_device_token')
+        ApiResource.auth_access_token = get_credential('robinhood_access_token')
+        ApiResource.auth_refresh_token = get_credential('robinhood_refresh_token')
 
     def preload_market_info(self):
         logger.info("Preloading market data")
