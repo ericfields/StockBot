@@ -20,7 +20,7 @@ class IndexViewsTestCase(TestCase):
     def test_display_index(self):
         mock_stock_workflow('AAPL', 'AMZN')
         name, response = self.create_index('bob', 'AAPL AMZN:2')
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
         response = self.display_index('bob', name)
         self.assertContains(response, name)
         self.assertContains(response, 'AAPL')

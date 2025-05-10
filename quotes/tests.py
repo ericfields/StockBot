@@ -21,19 +21,19 @@ class QuotesTestCase(TestCase):
         stock_id = 'FAKE'
         mock_stock_workflow(stock_id)
         response = self.client.get('/quotes/view/' + stock_id)
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
 
     def test_option_quote(self):
         option_id = 'FAKE10P12-21'
         mock_option_workflow(option_id)
         response = self.client.get('/quotes/view/' + option_id)
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
 
     def test_option_quote_without_expiration(self):
         option_id = 'FAKE10P'
         mock_option_workflow(option_id)
         response = self.client.get('/quotes/view/' + option_id)
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
 
     def test_index_quote(self):
         stock_ids = ['FAKEA', 'FAKEB']
@@ -48,13 +48,13 @@ class QuotesTestCase(TestCase):
             'user_name': 'test',
             'text': create_cmd}
         )
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
         self.assertContains(response, index_name)
         for s in stock_ids:
             self.assertContains(response, s)
 
         response = self.client.get('/quotes/view/' + index_name)
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
 
     def test_empty_index_quote(self):
         index_name = 'EMPTY'
@@ -66,11 +66,11 @@ class QuotesTestCase(TestCase):
             'user_name': 'test',
             'text': create_cmd}
         )
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
         self.assertContains(response, index_name)
 
         response = self.client.get('/quotes/view/' + index_name)
-        self.assertEquals(200, response.status_code)
+        self.assertEqual(200, response.status_code)
 
 class AggregatorTestCase(TestCase):
     def setUp(self):
