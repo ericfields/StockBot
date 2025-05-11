@@ -17,7 +17,7 @@ You can then retrieve a chart as follows:
 
 `/quote AAPL`
 
-If you provide a Robinhood username/password, you can also quote options! For example, to quote an AAPL $250 call expiring January 1, 2019:
+If you provide Robinhood credentials, you can also quote options! For example, to quote an AAPL $250 call expiring January 1, 2019:
 
 `/quote AAPL250C@1-1-2019`
 
@@ -66,10 +66,13 @@ pip3 install -r requirements.txt
 
 ### Robinhood Authentication
 
-In order to retrieve stock quote data, you'll need to set the following values in the `credentials.py` file:
-`robinhood_username`: Your Robinhood account username
-`robinhood_password`: Your Robinhood account password
-`robinhood_device_token`: A UUID value which is unique between Robinhood users. This can be obtained by logging into Robinhood via browser or app, and doing a Ctrl+F for "clientId:".
+In order to retrieve stock quote data, you'll need to set the following values in the `robinhood/credentials` directory:
+
+* `device_id`: Identifier for the web client, unique between Robinhood clients. The value can be found in the cookie named 'device_id' in a robinhood.com web session. For a given user, the value should remain unchanged for that particular web browser, even between web sessions. You can specify this value in the file `credentials/.device_id` for convenience.
+
+* `oauth_token`: OAuth access token from a Robinhood web session. You can obtain this value by from a robinhood.com web session, from Local Storage under the key 'web:auth_state'. You can specify this value in the file `credentials/.oauth_token` for convenience. StockBot will periodically refresh the token when it is near expiry; when the token is refreshed, the new token will be written to the `.oauth_token` file.
+
+StockBot does not support username/password authentication, as Robinhood enforces two-factor authentication for these workflows; this would be painful for users to enact in the real world.
 
 Note that StockBot only uses these credentials to retrieve stock quote data, and does not retrieve or interact with any user-specific information, nor does it perform any buying/selling operations. StockBot only uses Robinhood to retrieve price information about a stock.
 

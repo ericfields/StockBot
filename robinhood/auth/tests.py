@@ -1,8 +1,10 @@
 from pathlib import Path
 from django.test import TestCase
-from .authenticator import TokenAuthenticator
+from .authenticator import TokenAuthenticator, load_authenticator_instance, _load_authenticator
+from credentials import robinhood_credentials
 from .oauth_token import OAuthToken
 from unittest import SkipTest
+import tempfile
 import requests
 
 class AuthTestCase(TestCase):
@@ -39,6 +41,37 @@ class AuthTestCase(TestCase):
         oauth_token = self.authenticate_and_refresh(self.device_id_file, self.oauth_token_file)
         self.assertTrue(oauth_token) # True if not None or empty
     
+    def test_load_authenticator_instance(self):
+        authenticator = load_authenticator_instance()
+        self.assertIsInstance(authenticator, TokenAuthenticator)
+
+        # Verify that we do not initialize the authenticator more than once
+        self.assertIs(authenticator, load_authenticator_instance())
+
+    def test_load_authenticator(self):
+        authenticator = load_authenticator_instance()
+        self.assertIsNotNone(authenticator)
+
+        new_authenticator = _load_authenticator()
+        self.assertIsNotNone(authenticator)
+
+        # Verify that the authenticator is reinitialized
+        self.assertIsNot(authenticator, new_authenticator)
+
+    def test_load_authenticator_missing_credentials(self):
+        device_id = robinhood_credentials.device_id
+        try:
+            # Check with a file that doesn't exist
+            robinhood_credentials.device_id = Path('.nonexistent')
+            self.assertIsNone(_load_authenticator())
+
+            # Check with an empty credential
+            with tempfile.NamedTemporaryFile(mode='w') as temp_device_id:
+                robinhood_credentials.device_id = Path(temp_device_id.name)
+                self.assertIsNone(_load_authenticator())
+        finally:
+            robinhood_credentials.device_id = device_id
+
 
     def authenticate_and_refresh(self, device_id: str | Path, token: str | Path) -> OAuthToken:
         authenticator = TokenAuthenticator(device_id, token, refresh_on_initial_load=False)

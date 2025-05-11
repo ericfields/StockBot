@@ -3,6 +3,8 @@ from datetime import datetime
 from threading import Lock
 from pathlib import Path
 
+from credentials import robinhood_credentials
+
 from .oauth_token import OAuthToken
 
 class AuthProvider():
@@ -157,15 +159,19 @@ class TokenAuthenticator(Authenticator):
         return True
     
     @staticmethod
-    def __read_param_value_or_file(param: str, value: str | Path, required=True) -> str:
-        if isinstance(value, Path):
+    def __read_param_value_or_file(param: str, arg: str | Path, required=True) -> str:
+        if isinstance(arg, Path):
             try:
-                value = value.read_text().strip()
+                value = arg.read_text().strip()
+                if not value and required:
+                    raise ValueError(f"{param} file is empty: {arg}")
             except Exception as e:
-                raise ValueError(f"{param} could not be read from specified file {value}", e)
+                raise ValueError(f"{param} could not be read from specified file {arg}", e)
+        else:
+            value = arg
 
         if not value and required:
-            raise ValueError(f"{param} value cannot be None or empty", e)
+            raise ValueError(f"{param} value cannot be None or empty")
         
         return value
         
@@ -198,3 +204,31 @@ class TokenAuthenticator(Authenticator):
         msg += f"\nRequest headers: {response.request.headers}"
 
         return msg
+    
+AUTHENTICATOR = None
+    
+def load_authenticator_instance() -> Authenticator:
+    """
+    Loads a Robinhood TokenAuthenticator instance.
+    Should be invoked once at startup time.
+    Will return None if the Authenticator could not be loaded for whatever reason.
+    """
+    global AUTHENTICATOR
+    if AUTHENTICATOR:
+        return AUTHENTICATOR
+    
+    print("Initializing Authenticator...")
+    AUTHENTICATOR = _load_authenticator()
+    return AUTHENTICATOR
+
+
+def _load_authenticator() -> Authenticator:
+    device_id = robinhood_credentials.device_id
+    oauth_token = robinhood_credentials.oauth_token
+    client_id = robinhood_credentials.client_id
+
+    try:
+        return TokenAuthenticator(device_id, oauth_token, client_id=client_id)
+    except ValueError as e:
+        print("\nCould not initialize token authenticator", e)
+        return None

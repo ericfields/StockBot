@@ -19,17 +19,7 @@ class QuotesConfig(AppConfig):
             ApiResource.enable_mock = True
 
         if {'runserver', 'uwsgi'}.intersection(set(sys.argv)):
-            self.load_auth_credentials()
-            ApiResource.authenticate()
             self.preload_market_info()
-
-    def load_auth_credentials(self):
-        ApiResource.username = get_credential('robinhood_username')
-        ApiResource.password = get_credential('robinhood_password')
-        ApiResource.oauth_client_id = get_credential('robinhood_oauth_client_id')
-        ApiResource.device_token = get_credential('robinhood_device_token')
-        ApiResource.auth_access_token = get_credential('robinhood_access_token')
-        ApiResource.auth_refresh_token = get_credential('robinhood_refresh_token')
 
     def preload_market_info(self):
         logger.info("Preloading market data")
