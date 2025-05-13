@@ -17,8 +17,6 @@ from robinhood.auth.authenticator import load_authenticator_instance
 
 ROBINHOOD_ENDPOINT = 'https://api.robinhood.com'
 
-ROBINHOOD_AUTHENTICATOR = load_authenticator_instance()
-
 logger = logging.getLogger('stockbot')
 
 class ApiModel():
@@ -170,6 +168,14 @@ class ApiResource(ApiModel):
 
     enable_mock = False
     mock_results = {}
+
+    ROBINHOOD_AUTHENTICATOR = None
+
+    @staticmethod
+    def load_api_authenticator():
+        global ROBINHOOD_AUTHENTICATOR
+        ROBINHOOD_AUTHENTICATOR = load_authenticator_instance()
+        return ROBINHOOD_AUTHENTICATOR
 
     @classmethod
     def search(cls, **params):

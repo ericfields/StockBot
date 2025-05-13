@@ -207,7 +207,7 @@ class TokenAuthenticator(Authenticator):
     
 AUTHENTICATOR = None
     
-def load_authenticator_instance() -> Authenticator:
+def load_authenticator_instance() -> TokenAuthenticator:
     """
     Loads a Robinhood TokenAuthenticator instance.
     Should be invoked once at startup time.
