@@ -1,5 +1,9 @@
+from datetime import datetime
+from pytz import timezone
+
 from django.db import models
 from django.core.validators import MinValueValidator
+
 from robinhood.models import Stock, Option
 
 class User(models.Model):
@@ -13,19 +17,27 @@ class Index(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=14, unique=True)
+    identifier: str
 
-    def __init__(self, *args, **kwargs):
-        self.tmp_assets = []
+    def __init__(self, *args, identifier=None, **kwargs):
+        self.tmp_assets: list[Asset] = []
         super().__init__(*args, **kwargs)
+        self.identifier = identifier or self.name
+
 
     def add_asset(self, asset):
         self.tmp_assets.append(asset)
 
-    def assets(self):
+    def assets(self) -> list["Asset"]:
         if self.pk:
-            return self.asset_set.all()
+            assets: set[Asset] = self.asset_set.all()
+            # Remove any expired assets
+            for asset in assets:
+                if asset.expired():
+                    asset.delete()
         else:
-            return self.tmp_assets
+            assets = self.tmp_assets
+        return assets
 
     def __str__(self):
         return self.name
@@ -78,6 +90,23 @@ class Asset(models.Model):
             self.instrument_object = self.__instrument_class().get(self.instrument_url)
 
         return self.instrument_object
+    
+    # Determines whether this is an expired option. These should be excluded from graphs.
+    def expired(self):
+        instrument = self.instrument()
+        if isinstance(instrument, Option):
+            now = datetime.now(timezone('US/Eastern'))
+            expiration_date = self.instrument().expiration_date
+            expiration_time = now.replace(
+                year=expiration_date.year,
+                month=expiration_date.month,
+                day=expiration_date.day,
+                hour=4
+            )
+            return now >= expiration_time
+        
+        return False
+
 
     def __instrument_class(self):
         if self.type == self.__class__.STOCK:

@@ -1,34 +1,37 @@
-from datetime import datetime, timedelta
 import pandas as pd
-from collections import OrderedDict
+
+from indexes.models import Asset
 
 import logging
 logger = logging.getLogger('stockbot')
 
 class ChartData():
+    name: str
+    identifier: str
+    assets: list[Asset]
 
-    def __init__(self, index):
-        self.index = index
+    def __init__(self, name: str, identifier: str, assets: list[Asset]):
+        self.name = name
+        self.identifier = identifier
+        self.assets = assets
 
     def load(self, quotes, historicals, start_time, end_time):
-        self.name = self.index.name
-
         # Remove any assets without historical data, i.e. missing or delisted assets
-        assets = []
-        for asset in self.index.assets():
+        valid_assets = []
+        for asset in self.assets:
             if asset.instrument_url in historicals:
-                assets.append(asset)
+                valid_assets.append(asset)
             elif asset.instrument_url in quotes:
                 logger.info("'{}' has likely been bought out or acquired, ignoring.".format(asset.identifier))
             else:
                 logger.warning("No data exists for stock/option '{}'".format(asset.identifier))
 
         # Get current price quote concurrently in a separate thread to save time
-        self.current_price = self.__get_index_current_value(assets, quotes)
+        self.current_price = self.__get_index_current_value(valid_assets, quotes)
 
-        self.reference_price = self.__get_reference_price(assets, historicals, start_time)
+        self.reference_price = self.__get_reference_price(valid_assets, historicals, start_time)
 
-        chart_price_map = self.__get_chart_price_map(assets, historicals, start_time, end_time)
+        chart_price_map = self.__get_chart_price_map(valid_assets, historicals, start_time, end_time)
         self.series = pd.Series(chart_price_map)
 
     def __get_index_current_value(self, assets, quotes):

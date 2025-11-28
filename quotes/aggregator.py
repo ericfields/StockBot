@@ -48,7 +48,7 @@ class Aggregator:
 
         return self.instrument_map
 
-    def get_instrument(self, item):
+    def get_instrument(self, item) -> Instrument:
         if not self.instruments_loaded:
             raise Exception("Instruments have not yet been loaded for this aggregator.")
 

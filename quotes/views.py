@@ -4,7 +4,7 @@ from django.http import HttpRequest, HttpResponse
 from django.conf import settings
 
 from robinhood.models import Stock
-from helpers.utilities import str_to_duration, mattermost_text
+from helpers.utilities import mattermost_text
 from chart import chart_builder
 
 from datetime import datetime

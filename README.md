@@ -32,7 +32,9 @@ You can create a custom index of stocks and options, and quote its overall value
 /quote MYSTUFF
 ```
 
-Indexes require a database to be configured. See [INDEX.md](documentation/INDEXES.md) for more info on enabling Index support, as well as instructions on tracking and quoting indexes.
+For more details on using indexes, see [INDEXEX.MD](documentation/INDEXES.md)
+
+Indexes require a database to be configured. See [SETUP_NODES.md](documentation/SETUP_NOTES.md) for more info on database configuration.
 
 ### News
 
@@ -66,7 +68,7 @@ pip3 install -r requirements.txt
 
 ### Robinhood Authentication
 
-In order to retrieve stock quote data, you'll need to set the following values in the `robinhood/credentials` directory:
+In order to retrieve stock quote data, you'll need to set the following values in the `credentials` directory:
 
 * `device_id`: Identifier for the web client, unique between Robinhood clients. The value can be found in the cookie named 'device_id' in a robinhood.com web session. For a given user, the value should remain unchanged for that particular web browser, even between web sessions. You can specify this value in the file `credentials/.device_id` for convenience.
 

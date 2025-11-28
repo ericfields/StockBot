@@ -6,10 +6,9 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter
 import pandas as pd
 from datetime import datetime, timedelta
-from dateutil import parser as dateparser
 from io import BytesIO
 from enum import Enum
-from collections import OrderedDict
+from chart.chart_data import ChartData
 
 # Needed to register a datetime converter
 from pandas.plotting import register_matplotlib_converters
@@ -125,12 +124,10 @@ class Chart():
         if self.hide_value:
             self.axis.yaxis.set_major_formatter(FuncFormatter(self.__percent))
 
-    def plot(self, *chart_data_sets):
-        chart_data_sets = sorted(chart_data_sets, key=self.__sort_by_gain, reverse=True)
+    def plot(self, *chart_data_sets: list[ChartData], show_price=False):
+        chart_data_sets: list[ChartData] = sorted(chart_data_sets, key=self.__sort_by_gain, reverse=True)
 
-        single_set = len(chart_data_sets) == 1
-
-        if not single_set:
+        if not show_price:
             if self.__is_day_chart():
                 # Add a dashed line indicating the opening price
                 self.axis.axhline(1.0,
@@ -175,7 +172,7 @@ class Chart():
                 
                 reference_price = 1.0
 
-            if single_set:
+            if show_price:
                 # Show the price info for the single data set
                 self.__show_price_info(current_price, reference_price)
 
@@ -197,7 +194,7 @@ class Chart():
             else:
                 chart_price = f"{(current_price - 1) * 100:0.1f}%"
 
-            label = f"{chart_data.name} ({chart_price})"
+            label = f"{chart_data.identifier} ({chart_price})"
 
             self.axis.plot(series,
                 color=line_color,
@@ -205,7 +202,7 @@ class Chart():
                 label=label)
 
 
-        if not single_set:
+        if not show_price:
             self.axis.legend(facecolor='none')
 
 
@@ -317,7 +314,7 @@ class Chart():
             title = title[0:self.max_title_length] + '...'
 
         # Dollar signs do weird things in the title text view, escape them
-        title = title.replace('$', "\$")
+        title = title.replace('$', "\\$")
         self.axis.set_title(title, **self.title_layout)
 
     def __show_price_info(self, current_price, reference_price):

@@ -3,10 +3,8 @@ from helpers.utilities import mattermost_text, mattermost_table
 from quotes.aggregator import Aggregator
 from exceptions import BadRequestException
 from robinhood.models import Stock
-from datetime import datetime
 import re
 from django.db import connection
-from pytz import timezone
 
 import logging
 
@@ -341,7 +339,7 @@ def assets_table(assets, quotes, total_value, is_owner):
     else:
         table_rows.append([ 'Asset', 'Change', '% of Index'])
 
-    assets = sorted(assets, reverse=True, key=lambda a: change_impact(a, quotes))
+    assets: list[Asset] = sorted(assets, reverse=True, key=lambda a: change_impact(a, quotes))
 
     for a in assets:
         row_asset = a.identifier
@@ -359,7 +357,7 @@ def assets_table(assets, quotes, total_value, is_owner):
                 row_change = '+' + row_change
         else:
             value = 0
-            if a.type == Asset.OPTION and asset_expired(a):
+            if a.expired():
                 row_asset += ' (expired)'
             else:
                 row_asset += ' (delisted)'
@@ -389,14 +387,3 @@ def change_impact(asset, quotes):
     previous_close_price = quote.previous_close if asset.type == Asset.STOCK else quote.previous_close_price
     value_change = (quote.price() - previous_close_price) * asset.count * asset.unit_count()
     return abs(value_change)
-
-def asset_expired(asset):
-    now = datetime.now(timezone('US/Eastern'))
-    expiration_date = asset.instrument().expiration_date
-    expiration_time = now.replace(
-        year=expiration_date.year,
-        month=expiration_date.month,
-        day=expiration_date.day,
-        hour=4
-    )
-    return now >= expiration_time

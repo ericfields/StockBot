@@ -19,15 +19,22 @@ def build_chart(identifiers, span = 'day'):
     span = str_to_duration(span)
 
     aggregator = Aggregator()
-    indexes = get_indexes(aggregator, identifiers)
+    indexes, title = get_indexes_and_title(aggregator, identifiers)
 
     # Hide the pricing information for a user index
     hide_value = any([p.pk for p in indexes])
 
-    title = ', '.join([p.name for p in indexes])
+    chart_data_sets: list[ChartData] = []
+    for index in indexes:
+        # If this is a chart for a singular user index, plot each asset on its own line
+        if index.pk and len(indexes) == 1:
+            for asset in index.assets():
+                chart_data_sets.append(ChartData(asset.identifier, asset.identifier, [asset]))
+        else:
+            chart_data_sets.append(ChartData(index.name, index.identifier, index.assets()))
 
-    chart_data_sets = [ChartData(p) for p in indexes]
-    indexes = [cd.index for cd in chart_data_sets]
+    # Show the price only when quoting a single asset not from a user index
+    show_price = len(chart_data_sets) == 1 and not indexes[0].pk
 
     market = Market.get(MARKET)
     market_hours = market.hours()
@@ -43,16 +50,17 @@ def build_chart(identifiers, span = 'day'):
         chart_data.load(quotes, historicals, start_time, end_time)
 
     chart = Chart(title, span, market.timezone, market_hours, hide_value)
-    chart.plot(*chart_data_sets)
+    chart.plot(*chart_data_sets, show_price=show_price)
     return chart
 
-def get_indexes(aggregator, identifiers):
+def get_indexes_and_title(aggregator: Aggregator, identifiers: set[str]) -> tuple[list[Index], str]:
     # Remove duplicates by converting to set (and back)
     identifiers = set(identifiers.upper().split(','))
     if len(identifiers) > 10:
         raise BadRequestException("Sorry, you can only quote up to ten stocks/indexes at a time.")
 
     indexes = []
+    title = None
 
     if DATABASE_PRESENT:
         # Determine which identifiers, if any, are indexes
@@ -71,25 +79,20 @@ def get_indexes(aggregator, identifiers):
     # Load instruments for all index assets and identifiers
     aggregator.load_instruments(*indexes, *identifiers)
 
-    is_single_instrument = (len(identifiers) == 1 and not indexes)
-
     # Wrap each of the remaining non-index instruments in its own index
     for identifier in identifiers:
         instrument = aggregator.get_instrument(identifier)
-        # Use the full name if this instrument is the only thing being quoted
-        # Otherwise use its identifier name
-        if is_single_instrument:
-            index_name = instrument.full_name()
-        else:
-            index_name = instrument.identifier()
-        index = Index(name=index_name)
+        index = Index(name=instrument.full_name(), identifier=instrument.identifier())
         asset = Asset(index=index, instrument=instrument, count=1)
         index.add_asset(asset)
         indexes.append(index)
 
-    return indexes
+    if not title:
+        title = ', '.join([p.name for p in indexes])
 
-def find_index(name):
+    return indexes, title
+
+def find_index(name) -> Index:
     if not re.match('^[A-Z]{1,14}$', name):
         return None
 
