@@ -19,7 +19,7 @@ MARKET = 'XNYS'
 DATABASE_PRESENT = bool(connection.settings_dict['NAME'])
 
 def get_chart(request, identifiers: list, span = 'day'):
-    chart = chart_builder.build_chart(identifiers, span)
+    chart = chart_builder.build_chart(identifiers, span, split=bool_param(request, 'split'))
     return HttpResponse(chart.get_img_data(), content_type="image/png")
 
 def get_chart_img(request: HttpRequest, img_name: str):
@@ -142,3 +142,12 @@ def mattermost_action(url: str, name: str, **params):
             }
         }
     }
+
+def bool_param(request: HttpRequest, param_name: str) -> bool:
+    value = request.GET.get(param_name)
+    if value != None:
+        value = value.lower()
+        match value: 
+            case '' | 'true' | 't' | 'y':
+                return True
+    return False

@@ -15,7 +15,7 @@ MARKET = 'XNYS'
 
 DATABASE_PRESENT = bool(connection.settings_dict['NAME'])
 
-def build_chart(identifiers, span = 'day'):
+def build_chart(identifiers, span = 'day', split=False):
     span = str_to_duration(span)
 
     aggregator = Aggregator()
@@ -26,8 +26,8 @@ def build_chart(identifiers, span = 'day'):
 
     chart_data_sets: list[ChartData] = []
     for index in indexes:
-        # If this is a chart for a singular user index, plot each asset on its own line
-        if index.pk and len(indexes) == 1:
+        if split:
+            # Plot each asset on its own line.
             for asset in index.assets():
                 chart_data_sets.append(ChartData(asset.identifier, asset.identifier, [asset]))
         else:
