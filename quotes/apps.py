@@ -43,4 +43,4 @@ class QuotesConfig(AppConfig):
         logger.info("Preloading market data")
         MARKET = 'XNYS'
         market = Market.get(MARKET)
-        market_hours = market.hours()
+        market.hours()
