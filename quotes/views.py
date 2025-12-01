@@ -1,3 +1,4 @@
+from typing import Any
 from django.core.cache import cache
 from django.urls import reverse
 from django.http import HttpRequest, HttpResponse
@@ -23,8 +24,9 @@ def get_chart(request, identifiers: list, span = 'day'):
     return HttpResponse(chart.get_img_data(), content_type="image/png")
 
 def get_chart_img(request: HttpRequest, img_name: str):
-    if cache.has_key(img_name):
-        return cache.get(img_name)
+    cache_key = get_cache_key(img_name, request)
+    if cache.has_key(cache_key):
+        return cache.get(cache_key)
 
     parts = img_name.split("_")
     if len(parts) < 3:
@@ -33,8 +35,14 @@ def get_chart_img(request: HttpRequest, img_name: str):
     span = parts[-1]
 
     response = get_chart(request, identifiers, span)
-    cache.set(img_name, response)
+    cache.set(cache_key, response)
     return response
+
+def get_cache_key(img_name: str, request: HttpRequest):
+    key = img_name
+    if bool_param(request, 'split'):
+        key += '_split'
+    return key
 
 
 def get_mattermost_chart(request: HttpRequest):
@@ -59,7 +67,7 @@ def update_mattermost_chart(request: HttpRequest):
     request_body = json.loads(request.body)
     context = request_body['context']
 
-    params = context['params']
+    params: dict[str, Any] = context['params']
     identifiers = params['identifiers']
     span = params['span']
 
@@ -94,19 +102,29 @@ def mattermost_chart(request: HttpRequest, identifiers: list, span: str):
     # Generate the image and cache it in advance
     get_chart_img(request, img_file_name)
 
-    image_path = reverse('quote_img', args=[img_file_name])
-    image_url = build_stockbot_url(request, image_path)
-    update_url = build_stockbot_url(request, reverse('quote_update'))
+    url_params = ''
+    if bool_param(request, 'split'):
+        url_params = '?split=true'
 
-    actions = [
-        mattermost_action(update_url, 'refresh', identifiers=ids, span=span),
-        mattermost_action(update_url, 'day', identifiers=ids, span='day'),
-        mattermost_action(update_url, 'week', identifiers=ids, span='week'),
-        mattermost_action(update_url, 'month', identifiers=ids, span='month'),
-        mattermost_action(update_url, '3 months', identifiers=ids, span='3month'),
-        mattermost_action(update_url, 'year', identifiers=ids, span='year'),
-        mattermost_action(update_url, '5 years', identifiers=ids, span='5year'),
-    ]
+    image_path = reverse('quote_img', args=[img_file_name]) + url_params
+    image_url = build_stockbot_url(request, image_path)
+    update_url = build_stockbot_url(request, reverse('quote_update') + url_params)
+
+    params = {
+        'identifiers': ids
+    }
+
+    name_to_span = {
+        'refresh': span,
+        'day': 'day',
+        'week': 'week',
+        'month': 'month',
+        '3 months': '3month',
+        'year': 'year',
+        '5 years': '5year'
+    }
+
+    actions = create_mattermost_actions(update_url, name_to_span, params)
 
     response = {
         "response_type": "in_channel",
@@ -120,6 +138,15 @@ def mattermost_chart(request: HttpRequest, identifiers: list, span: str):
         ]
     }
     return response
+
+def create_mattermost_actions(update_url: str, name_to_span: dict[str, str], params: dict[str, Any]) -> list[dict[str, str | dict]]: 
+    actions = []
+    for name in name_to_span:
+        span = name_to_span[name]
+        action = mattermost_action(update_url, name, span=span, **params)
+        actions.append(action)
+
+    return actions
 
 def stock_info(request: HttpRequest):
     symbol = request.POST.get('text', None)
@@ -145,9 +172,15 @@ def mattermost_action(url: str, name: str, **params):
 
 def bool_param(request: HttpRequest, param_name: str) -> bool:
     value = request.GET.get(param_name)
+    return is_truthy(value)
+
+def is_truthy(value: str):
     if value != None:
-        value = value.lower()
-        match value: 
-            case '' | 'true' | 't' | 'y':
-                return True
+        if isinstance(value, bool):
+            return value
+        elif isinstance(value, str):
+            value = value.lower()
+            match value:
+                case 'true' | 't' | 'y' | '1':
+                    return True
     return False
