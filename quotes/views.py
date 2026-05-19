@@ -10,7 +10,6 @@ from chart import chart_builder
 
 from datetime import datetime
 import json
-import urllib.request
 
 from django.db import connection
 
@@ -67,23 +66,17 @@ def get_mattermost_chart(request: HttpRequest):
 def update_mattermost_chart(request: HttpRequest):
     request_body = json.loads(request.body)
     context = request_body['context']
-    post_id = request_body.get('post_id', '')
 
     params: dict[str, Any] = context['params']
     identifiers = params['identifiers']
     span = params['span']
 
     chart_response = mattermost_chart(request, identifiers, span)
-    attachments = chart_response['attachments']
-
-    if getattr(settings, 'MATTERMOST_API_TOKEN', ''):
-        mattermost_patch_post(post_id, attachments)
-        return HttpResponse(json.dumps({}), content_type="application/json")
 
     return HttpResponse(json.dumps({
         "update": {
             "props": {
-                "attachments": attachments
+                "attachments": chart_response['attachments']
             }
         }
     }), content_type="application/json")
@@ -177,27 +170,6 @@ def mattermost_action(url: str, name: str, **params):
             }
         }
     }
-
-def mattermost_patch_post(post_id: str, attachments: list):
-    api_url = settings.MATTERMOST_API_URL
-    token = settings.MATTERMOST_API_TOKEN
-
-    req = urllib.request.Request(f'{api_url}/api/v4/posts/{post_id}')
-    req.add_header('Authorization', f'Bearer {token}')
-    resp = urllib.request.urlopen(req)
-    post = json.loads(resp.read())
-
-    post['props']['attachments'] = attachments
-
-    patch_data = json.dumps({'props': post['props']}).encode()
-    req2 = urllib.request.Request(
-        f'{api_url}/api/v4/posts/{post_id}/patch',
-        data=patch_data,
-        method='PUT',
-    )
-    req2.add_header('Authorization', f'Bearer {token}')
-    req2.add_header('Content-Type', 'application/json')
-    urllib.request.urlopen(req2)
 
 def bool_param(request: HttpRequest, param_name: str) -> bool:
     value = request.GET.get(param_name)
