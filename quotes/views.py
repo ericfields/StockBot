@@ -159,9 +159,7 @@ def stock_info(request: HttpRequest):
     return mattermost_text(response)
 
 def mattermost_action(url: str, name: str, **params):
-    action_id = name.lower().replace(' ', '_')
     return {
-        "id": action_id,
         "name": name.capitalize(),
         "integration": {
             "url": url,
