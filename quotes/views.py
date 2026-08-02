@@ -120,9 +120,9 @@ def mattermost_chart(request: HttpRequest, identifiers: list, span: str):
         'day': 'day',
         'week': 'week',
         'month': 'month',
-        '3 months': '3month',
+        'quarter': '3month',
         'year': 'year',
-        '5 years': '5year'
+        '5Y': '5year'
     }
 
     actions = create_mattermost_actions(update_url, name_to_span, params)
@@ -164,7 +164,7 @@ def mattermost_action(url: str, name: str, **params):
     action_id = re.sub(r'[^A-Za-z0-9]', '', name.lower())
     return {
         "id": action_id,
-        "name": name.capitalize(),
+        "name": name.title(),
         "integration": {
             "url": url,
             "context": {
