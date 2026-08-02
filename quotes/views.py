@@ -10,6 +10,7 @@ from chart import chart_builder
 
 from datetime import datetime
 import json
+import re
 
 from django.db import connection
 
@@ -159,7 +160,8 @@ def stock_info(request: HttpRequest):
     return mattermost_text(response)
 
 def mattermost_action(url: str, name: str, **params):
-    action_id = name.lower().replace(' ', '_')
+    # Mattermost action ids must be strictly alphanumeric
+    action_id = re.sub(r'[^A-Za-z0-9]', '', name.lower())
     return {
         "id": action_id,
         "name": name.capitalize(),
